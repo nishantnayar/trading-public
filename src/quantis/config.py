@@ -29,9 +29,9 @@ class Settings(BaseSettings):
     alpaca_secret_key: str = Field(default="")
     alpaca_paper: bool = Field(default=True)
 
-    # Source OHLC (bootstrap ETL)
-    source_pg_url: str = Field(default="")
-    source_ohlc_table: str = Field(default="")
+    # Prefect (distinct port/pool so it never collides with other local projects)
+    prefect_api_url: str = Field(default="http://localhost:4202/api")
+    prefect_work_pool: str = Field(default="quantis-ingestion")
 
     @property
     def sqlalchemy_url(self) -> str:

@@ -50,7 +50,12 @@ rl = [
 orchestration = [
     "prefect>=2.19,<3",
 ]
-# Dashboard
+# FastAPI backend for the Next.js UI
+api = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+]
+# Streamlit smoke test (temporary)
 app = [
     "streamlit>=1.36",
     # plotly 7.0 removed the `scattermapbox` trace that vectorbt still references,

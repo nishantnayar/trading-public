@@ -18,6 +18,8 @@ __pycache__/
 
 # ML / experiment artifacts
 mlruns/
+mlflow.db
+mlartifacts/
 models/artifacts/
 *.pkl
 *.joblib
@@ -31,8 +33,14 @@ data/dumps/
 # results (keep committed tearsheets under results/ selectively)
 results/*.tmp
 
+# Next.js frontend
+node_modules/
+.next/
+frontend/.env.local
+
 # IDE / OS
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+docs/PROGRESS.md

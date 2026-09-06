@@ -1,0 +1,251 @@
+"""Start the Quantis local stack in one terminal with interleaved, prefixed logs.
+
+Services:
+    api      FastAPI      http://127.0.0.1:8000/docs
+    ui       Next.js      http://localhost:3000
+    prefect  Prefect      http://127.0.0.1:4201   (isolated PREFECT_HOME)
+
+Ctrl+C stops everything. Postgres is expected to be running as a system service.
+
+Run:  uv run python scripts/start.py
+      uv run python scripts/start.py --only api ui
+      uv run python scripts/start.py --skip prefect
+"""
+
+from __future__ import annotations
+
+import argparse
+import os
+import socket
+import subprocess
+import sys
+import threading
+from dataclasses import dataclass, field
+from pathlib import Path
+
+REPO = Path(__file__).resolve().parents[1]
+IS_WINDOWS = os.name == "nt"
+NPM = "npm.cmd" if IS_WINDOWS else "npm"
+
+API_PORT = 8000
+UI_PORT = 3000
+PREFECT_PORT = 4201
+
+RESET = "\033[0m"
+
+
+@dataclass
+class Service:
+    name: str
+    command: list[str]
+    color: str
+    port: int
+    cwd: Path = REPO
+    env: dict[str, str] = field(default_factory=dict)
+    url: str = ""
+
+
+def services() -> list[Service]:
+    prefect_home = REPO / ".prefect"
+    return [
+        Service(
+            name="api",
+            command=[
+                "uv", "run", "uvicorn", "quantis.api.main:app",
+                "--host", "127.0.0.1", "--port", str(API_PORT), "--reload",
+            ],
+            color="\033[36m",  # cyan
+            port=API_PORT,
+            url=f"http://127.0.0.1:{API_PORT}/docs",
+        ),
+        Service(
+            name="ui",
+            command=[NPM, "run", "dev", "--", "--port", str(UI_PORT)],
+            color="\033[35m",  # magenta
+            port=UI_PORT,
+            cwd=REPO / "frontend",
+            url=f"http://localhost:{UI_PORT}",
+        ),
+        Service(
+            name="prefect",
+            command=["uv", "run", "prefect", "server", "start"],
+            color="\033[33m",  # yellow
+            port=PREFECT_PORT,
+            env={
+                "PREFECT_HOME": str(prefect_home),
+                "PREFECT_SERVER_API_HOST": "127.0.0.1",
+                "PREFECT_SERVER_API_PORT": str(PREFECT_PORT),
+                "PREFECT_API_URL": f"http://127.0.0.1:{PREFECT_PORT}/api",
+            },
+            url=f"http://127.0.0.1:{PREFECT_PORT}",
+        ),
+    ]
+
+
+def port_owner(port: int) -> int | None:
+    """PID listening on `port`, or None. Windows-only lookup; best-effort elsewhere."""
+    if not IS_WINDOWS:
+        return None
+    result = subprocess.run(
+        ["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True, check=False
+    )
+    for line in result.stdout.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and parts[3] == "LISTENING" and parts[1].endswith(f":{port}"):
+            return int(parts[4])
+    return None
+
+
+def preflight(selected: list[Service]) -> tuple[list[str], list[str]]:
+    """Checks run before spawning anything.
+
+    Returns (blockers, warnings). Blockers make startup impossible — a taken port means
+    the service cannot bind — so we abort instead of emitting a confusing crash log.
+    """
+    blockers: list[str] = []
+    problems: list[str] = []
+    names = {service.name for service in selected}
+
+    # A stale listener yields an opaque "WinError 10013" / "EADDRINUSE", so name it here.
+    for service in selected:
+        with socket.socket() as probe:
+            probe.settimeout(0.4)
+            if probe.connect_ex(("127.0.0.1", service.port)) != 0:
+                continue
+        pid = port_owner(service.port)
+        owner = f" by PID {pid} — stop it with: taskkill /PID {pid} /T /F" if pid else ""
+        blockers.append(f"port {service.port} ('{service.name}') is already in use{owner}")
+
+    if "ui" in names:
+        if not (REPO / "frontend" / "node_modules").exists():
+            problems.append("frontend/node_modules missing — run: npm install (in frontend/)")
+        env_local = REPO / "frontend" / ".env.local"
+        if not env_local.exists():
+            env_local.write_text(f"NEXT_PUBLIC_API_URL=http://127.0.0.1:{API_PORT}\n")
+            print(f"wrote {env_local.relative_to(REPO)}")
+
+    if "prefect" in names:
+        (REPO / ".prefect").mkdir(exist_ok=True)
+
+    if "api" in names:
+        try:
+            import psycopg
+
+            from quantis.config import get_settings
+
+            settings = get_settings()
+            if not settings.has_db_password:
+                problems.append("PGPASSWORD not set in .env — API queries will return 503")
+            else:
+                dsn = (
+                    f"host={settings.pghost} port={settings.pgport} "
+                    f"dbname={settings.pgdatabase} user={settings.pguser} "
+                    f"password={settings.pgpassword}"
+                )
+                with psycopg.connect(dsn, connect_timeout=5):
+                    pass
+        except Exception as exc:  # noqa: BLE001
+            problems.append(
+                f"Postgres unreachable ({type(exc).__name__}) — is the service running?"
+            )
+
+    return blockers, problems
+
+
+def pump(service: Service, process: subprocess.Popen) -> None:
+    """Forward one child's output, prefixed so interleaved logs stay readable."""
+    prefix = f"{service.color}[{service.name:>7}]{RESET} "
+    assert process.stdout is not None
+    for line in process.stdout:
+        sys.stdout.write(prefix + line.rstrip() + "\n")
+        sys.stdout.flush()
+
+
+def stop(process: subprocess.Popen) -> None:
+    """Kill a child and its descendants.
+
+    `npm run dev` spawns node as a grandchild, so terminating only the direct child
+    leaves the dev server holding the port. taskkill /T covers the whole tree.
+    """
+    if process.poll() is not None:
+        return
+    if IS_WINDOWS:
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            check=False,
+        )
+    else:
+        process.terminate()
+    try:
+        process.wait(timeout=10)
+    except subprocess.TimeoutExpired:
+        process.kill()
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description="Start the Quantis local stack.")
+    parser.add_argument("--only", nargs="+", metavar="SVC", help="run only these services")
+    parser.add_argument("--skip", nargs="+", metavar="SVC", default=[], help="skip these")
+    args = parser.parse_args(argv)
+
+    selected = services()
+    if args.only:
+        selected = [s for s in selected if s.name in args.only]
+    selected = [s for s in selected if s.name not in args.skip]
+
+    if not selected:
+        print("no services selected", file=sys.stderr)
+        return 2
+
+    blockers, warnings = preflight(selected)
+    for warning in warnings:
+        print(f"  warning: {warning}", file=sys.stderr)
+    if blockers:
+        for blocker in blockers:
+            print(f"  ERROR: {blocker}", file=sys.stderr)
+        return 1
+
+    running: list[tuple[Service, subprocess.Popen]] = []
+    try:
+        for service in selected:
+            env = {**os.environ, "PYTHONUNBUFFERED": "1", "FORCE_COLOR": "1", **service.env}
+            process = subprocess.Popen(
+                service.command,
+                cwd=service.cwd,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            running.append((service, process))
+            threading.Thread(target=pump, args=(service, process), daemon=True).start()
+
+        print("\nQuantis stack:")
+        for service in selected:
+            if service.url:
+                print(f"  {service.name:>7}  {service.url}")
+        print("\nCtrl+C to stop all.\n")
+
+        while running:
+            for service, process in running:
+                code = process.poll()
+                if code is not None:
+                    print(f"\n[{service.name}] exited with code {code} — stopping stack.")
+                    return code or 1
+            try:
+                running[0][1].wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                continue
+    except KeyboardInterrupt:
+        print("\nstopping...")
+    finally:
+        for _, process in reversed(running):
+            stop(process)
+
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

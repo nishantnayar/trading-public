@@ -33,6 +33,9 @@ class Settings(BaseSettings):
     prefect_api_url: str = Field(default="http://localhost:4202/api")
     prefect_work_pool: str = Field(default="quantis-ingestion")
 
+    # FastAPI (Next.js on :3000 consumes this)
+    api_cors_origins: str = Field(default="http://localhost:3000,http://127.0.0.1:3000")
+
     @property
     def sqlalchemy_url(self) -> str:
         """psycopg (v3) SQLAlchemy URL for the project DB."""

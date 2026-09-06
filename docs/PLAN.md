@@ -84,7 +84,9 @@ tests/           pytest: leakage checks, feature correctness, backtest invariant
 - **Postgres**: installed natively/locally (no Docker); connection via `.env`.
 - **ML**: scikit-learn pipeline + **LightGBM** (primary), XGBoost as a comparison;
   optional PyTorch MLP as a "stretch" model. SHAP for feature attribution.
-- **Experiment tracking / registry**: MLflow (local file backend, upgradeable to Postgres).
+- **Experiment tracking / registry**: MLflow on a local **SQLite** backend (`mlflow.db`),
+  upgradeable to Postgres. The file backend (`./mlruns`) is in maintenance mode upstream
+  and now raises rather than initialising.
 - **Store**: **PostgreSQL** via SQLAlchemy; Alembic for migrations.
 - **Backtest**: **vectorbt** (confirmed) — fits the cross-sectional ranked weight-matrix
   shape and runs fast parameter sweeps. **Tearsheets/analytics**: **quantstats** (primary)
@@ -205,10 +207,31 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    (full history backfill + incremental); (b) fundamentals downloader (yfinance/SimFin);
    (c) universe loader; Postgres upserts + a Prefect `ingest` flow. Tests for schema +
    idempotent upsert.
+   **Status:** (a) and (c) done. (b) partially done — `fundamentals` table + yfinance
+   loader exist but only a **5-symbol pilot** is ingested. yfinance yields just ~5 usable
+   quarters per ticker, so value/quality features are blocked on a better source
+   (SimFin / EDGAR / Sharadar) and the full 502-name backfill is deferred. Phase 3
+   therefore builds **price-only** features. See `docs/LIMITATIONS.md`.
 3. **Feature store** — momentum/value/quality/vol/technical features, all point-in-time;
    `features` table; leakage unit tests.
-4. **Labels + model** — cross-sectional forward-return labels, purged CV, LightGBM
-   training, MLflow logging + registry, SHAP report.
+   **Status:** DONE, price-only. 11 features (momentum 1m/3m/6m/12-1, `ret_5d`, vol
+   20d/60d, RSI-14, distance from 52w high, 50/200 MA ratio, log dollar volume) built
+   for 502 symbols / 754,809 rows. 18 tests cover hand-computed values plus four leakage
+   guards (future-truncation invariance, last-bar shock isolation, cross-symbol
+   independence, and an AST check rejecting `shift(-n)` / `center=True`). Value and
+   quality are deferred — see the Phase 2 status note.
+   **Status:** price-only features are implemented (`definitions.py`, `build.py`,
+   `tests/test_features.py`, `tests/test_leakage.py`). Value/quality is deferred until
+   fundamentals have real history — see `docs/LIMITATIONS.md`. Run with
+   `uv run python -m quantis.features.build`.
+4. **Labels + model** — ✅ **done.** Per-date z-scored 5-day forward-return labels
+   (`models/labels.py`), purged walk-forward CV with embargo (`models/cv.py`), rank-IC
+   metrics (`models/metrics.py`), LightGBM L2 regression + SHAP + MLflow
+   (`models/train.py`). Objective is regression on the z-score rather than `lambdarank`:
+   the z-score already strips the market move, so no query groups are needed. Complete
+   feature vectors are **required, not imputed**. Result: rank IC 0.0178 gross over 5
+   folds — see `docs/PROGRESS.md` and `docs/LIMITATIONS.md`. Run with
+   `uv run python -m quantis.models.train`.
 5. **Backtester** — vectorbt weight-matrix backtest with costs/slippage/turnover;
    tearsheet (CAGR, Sharpe, Sortino, max DD, hit rate, turnover, IC) via quantstats.
 6. **Portfolio & risk** — ranking → weights, vol-targeting, sector/name caps, rebalancer
@@ -219,11 +242,20 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    universe, bars, signals, positions, model diagnostics as JSON; (b) **Next.js** frontend
    (`frontend/`) with the 5 screens matching the mockups, consuming the API. Retire the
    Streamlit smoke test once parity is reached.
+   **Status:** scaffold is live. `scripts/start.ps1` launches API `:8000`, UI `:3000`,
+   and Prefect `:4201`. Overview and Monitoring read Postgres; Signals / Positions /
+   Model are labeled mockups until Phases 4–7. Streamlit remains at
+   `scripts/dashboard.ps1` (`:8502`) as a temporary smoke test.
 10. **RL agent (advanced / stretch)** — Gymnasium env wrapping the backtest, PPO/SAC via
     Stable-Baselines3, plugged into `portfolio.construct`; benchmark vs the rule-based
     baseline out-of-sample.
 11. **Polish** — CI, README with architecture diagram, results tearsheet,
-    "known limitations & next steps" section (shows maturity to recruiters).
+    "known limitations & next steps" section.
+    **Sphinx docs site (do last):** `docs/` today is working markdown. At the end,
+    stand up Sphinx with autodoc/Napoleon (and MyST so existing `.md` pages are
+    included) so the project ships a real API reference from docstrings — the
+    engineering-practice signal, not just a recruiter README. Gate this on Phases
+    4–7 existing; generating docs over empty packages is worse than waiting.
 
 ## Critical files to create (representative)
 
@@ -243,6 +275,7 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
 - `dashboard/app.py` (Streamlit smoke test — temporary)
 - `scripts/env_check.py`, `tests/test_env.py` (the environment gate)
 - `tests/test_leakage.py`, `tests/test_backtest.py`, `tests/test_features.py`
+- `docs/conf.py` + Sphinx autodoc (Phase 11 — not before the core packages exist)
 
 ## Verification
 
@@ -257,6 +290,8 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
   dashboard/app.py` on :8502.)
 - README documents assumptions, limitations (survivorship bias in the starter universe,
   free-data quality), and next steps — demonstrating honest quant judgment.
+- **Sphinx** (`uv run sphinx-build`) produces HTML under `docs/_build/` from package
+  docstrings + the markdown in `docs/` (Phase 11 only).
 
 ## Open items to confirm at implementation time
 

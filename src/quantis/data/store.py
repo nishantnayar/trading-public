@@ -10,7 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from quantis.db.engine import session_scope
-from quantis.db.models import DailyBar
+from quantis.db.models import DailyBar, Fundamental
 
 
 def _clean(value):
@@ -67,6 +67,67 @@ def upsert_daily_bars(df: pd.DataFrame, source: str = "alpaca") -> int:
             written += len(chunk)
     logger.info("upserted {} daily bars", written)
     return written
+
+
+_FUNDAMENTAL_FIELDS = (
+    "revenue",
+    "gross_profit",
+    "operating_income",
+    "net_income",
+    "total_assets",
+    "total_equity",
+    "total_debt",
+    "shares_outstanding",
+    "operating_cash_flow",
+    "capex",
+)
+
+
+def upsert_fundamentals(df: pd.DataFrame, source: str = "yfinance") -> int:
+    """Upsert long-format quarterly fundamentals. Returns rows written."""
+    if df.empty:
+        return 0
+
+    records = []
+    for row in df.itertuples(index=False):
+        d = row._asdict()
+        record = {
+            "symbol": d["symbol"],
+            "period_end": d["period_end"],
+            "as_of": d["as_of"],
+            "source": source,
+        }
+        for field in _FUNDAMENTAL_FIELDS:
+            record[field] = _clean(d.get(field))
+        records.append(record)
+
+    written = 0
+    with session_scope() as session:
+        for i in range(0, len(records), 500):
+            chunk = records[i : i + 500]
+            stmt = insert(Fundamental).values(chunk)
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[Fundamental.symbol, Fundamental.period_end],
+                set_={
+                    "as_of": stmt.excluded.as_of,
+                    "source": stmt.excluded.source,
+                    **{f: getattr(stmt.excluded, f) for f in _FUNDAMENTAL_FIELDS},
+                },
+            )
+            session.execute(stmt)
+            written += len(chunk)
+    logger.info("upserted {} fundamental rows", written)
+    return written
+
+
+def fundamental_coverage() -> dict:
+    """Quick summary of what's in fundamentals."""
+    with session_scope() as session:
+        n = session.scalar(select(func.count()).select_from(Fundamental))
+        nsym = session.scalar(select(func.count(func.distinct(Fundamental.symbol))))
+        dmin = session.scalar(select(func.min(Fundamental.period_end)))
+        dmax = session.scalar(select(func.max(Fundamental.period_end)))
+    return {"rows": n, "symbols": nsym, "start": dmin, "end": dmax}
 
 
 def bar_coverage() -> dict:

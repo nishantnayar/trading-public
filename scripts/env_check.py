@@ -36,6 +36,8 @@ CHECKS: list[tuple[str, str, str]] = [
     ("llvmlite", "llvmlite (via numba)", "backtest"),
     ("quantstats", "quantstats", "backtest"),
     ("prefect", "prefect", "orchestration"),
+    ("fastapi", "fastapi", "api"),
+    ("uvicorn", "uvicorn", "api"),
     ("streamlit", "streamlit", "app"),
     ("plotly", "plotly", "app"),
     ("altair", "altair", "app"),

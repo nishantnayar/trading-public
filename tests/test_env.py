@@ -19,6 +19,8 @@ REQUIRED = [
     "numba",
     "quantstats",
     "prefect",
+    "fastapi",
+    "uvicorn",
     "streamlit",
     "alpaca",
 ]

@@ -64,7 +64,8 @@ flowchart LR
     G --> I[Paper Execution<br/>Alpaca]
     D -.-> M[MLflow<br/>registry]
     P[Prefect<br/>schedules] -.-> A & D & G
-    B & E & G & H --> S[Streamlit<br/>dashboard]
+    B & E & G & H --> API[FastAPI]
+    API --> S[Next.js<br/>dashboard]
 ```
 
 ---
@@ -79,7 +80,8 @@ flowchart LR
 | **Backtesting** | vectorbt, quantstats |
 | **Orchestration** | Prefect (isolated profile) |
 | **Execution** | Alpaca paper trading |
-| **Dashboard** | Streamlit + Plotly |
+| **Backend API** | FastAPI + Uvicorn |
+| **Dashboard** | Next.js (React + TypeScript) + Tailwind *(Streamlit smoke test interim)* |
 | **Quality** | pytest, ruff, mypy, pre-commit, GitHub Actions |
 
 ---
@@ -145,8 +147,10 @@ src/quantis/
 ├── portfolio/         # construct() → weights, risk model, constraints
 ├── rl/                # (advanced) Gymnasium env + PPO/SAC agent
 ├── execution/         # SimulatedBroker + Alpaca paper adapter
-└── orchestration/     # Prefect flows
-dashboard/             # Streamlit app (5 screens)
+├── orchestration/     # Prefect flows
+└── api/               # FastAPI backend (JSON for the Next.js UI)
+frontend/              # Next.js (React + TS) dashboard — 5 screens
+dashboard/             # Streamlit smoke test (temporary)
 scripts/               # env_check, init_db, prefect_server
 tests/                 # env / feature / leakage / backtest tests
 design/                # dark quant-terminal UI mockups
@@ -165,7 +169,7 @@ docs/PLAN.md           # full design & build plan
 - [ ] **Phase 6** — Portfolio construction & risk model
 - [ ] **Phase 7** — Paper execution (Alpaca) behind a common interface
 - [ ] **Phase 8** — Prefect deployments (ingest / retrain / rebalance)
-- [ ] **Phase 9** — Streamlit dashboard
+- [ ] **Phase 9** — FastAPI backend + Next.js dashboard (5 screens)
 - [ ] **Phase 10** — RL portfolio agent (advanced)
 - [ ] **Phase 11** — CI, tearsheet, polish
 

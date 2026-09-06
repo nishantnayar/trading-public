@@ -12,7 +12,7 @@ engineering depth to recruiters. Constraints from the discussion:
 - **Scope**: full system — data ingestion → feature store → model training →
   backtesting → portfolio/risk construction → paper execution → dashboard.
 - **Stack**: Python + LightGBM/XGBoost, **PostgreSQL** as the store, **Prefect** for
-  scheduling, **Streamlit** for the dashboard (Node/FastAPI noted as an alternative).
+  scheduling, and a **Next.js (React) + FastAPI** dashboard (chosen over Streamlit).
 
 The intended outcome is a portfolio-grade repo: clean architecture, reproducible
 research, honest backtesting (no look-ahead / survivorship bias), and an MLOps story
@@ -43,7 +43,9 @@ portfolio/       ranking -> weights, risk model, constraints, rebalancer
 rl/              (advanced) Gymnasium env + PPO/SAC portfolio agent behind construct()
 execution/       simulated broker + optional Alpaca paper-trading adapter
 orchestration/   Prefect flows: daily data pull, weekly retrain, weekly rebalance
-dashboard/       Streamlit app: signals, positions, PnL, model diagnostics
+api/             FastAPI backend: JSON endpoints for the Next.js UI
+frontend/        Next.js (React+TS) dashboard: 5 screens (separate npm project)
+dashboard/       Streamlit app: data-layer smoke test (temporary)
 tests/           pytest: leakage checks, feature correctness, backtest invariants
 ```
 
@@ -92,13 +94,19 @@ tests/           pytest: leakage checks, feature correctness, backtest invariant
 - **Execution**: `SimulatedBroker` (for backtests) and `AlpacaPaperClient` (paper only;
   no real orders) behind one `ExecutionClient` interface. Alpaca is the primary live/paper
   venue, matching the data source.
-- **Dashboard**: **Streamlit** (equity curve, live signals, positions, model diagnostics,
-  IC decay). Node/FastAPI+React noted as the alternative if a JS front end is preferred.
+- **Dashboard**: **Next.js (React + TypeScript)** frontend consuming a **FastAPI**
+  backend that exposes quantis data (coverage, universe, bars, signals, positions, model
+  diagnostics) as JSON. Full-stack signal; matches the dark quant-terminal mockups
+  pixel-for-pixel. (A basic Streamlit app exists as a data-layer smoke test and will be
+  retired once the Next.js UI covers the same screens.)
 - **Quality**: pytest, ruff, mypy, pre-commit, GitHub Actions CI. (No Docker — README
   documents native Postgres + `uv sync` setup instead.)
-- **UI already designed**: dark quant-terminal Streamlit dashboard, 5 screens
-  (Overview, Signals, Positions & Risk, Model Diagnostics, Monitoring) — mocked and
-  approved in Claude Design; Streamlit build matches those layouts.
+- **UI already designed**: dark quant-terminal dashboard, 5 screens (Overview, Signals,
+  Positions & Risk, Model Diagnostics, Monitoring) — mocked and approved in Claude Design;
+  the Next.js build matches those layouts.
+- **Node toolchain**: Node 22 / npm 10 (present). Frontend deps via npm in `frontend/`;
+  Python API deps via uv (`api` group). Ports: API 8000, frontend 3000 (distinct from
+  Prefect 4201).
 
 ## Reinforcement learning module (advanced / stretch)
 
@@ -163,7 +171,10 @@ libs go in **dependency groups** so a resolver issue in one area never blocks th
   installed only when the RL module is worked on)
 
 **`orchestration` group**: `prefect>=2.19`
-**`app` group** (dashboard): `streamlit>=1.36`, `plotly`, `altair`
+**`api` group** (backend for the Next.js UI): `fastapi`, `uvicorn[standard]`
+**`app` group** (Streamlit smoke test, temporary): `streamlit>=1.36`, `plotly`, `altair`
+**Frontend** (not uv — npm in `frontend/`): Next.js, React, TypeScript, Tailwind CSS,
+a charting lib (Recharts or lightweight-charts), TanStack Query
 **`dev` group**: `pytest`, `pytest-cov`, `ruff`, `mypy`, `pre-commit`, `ipykernel`
 
 **Fallback if numba/vectorbt ever blocks the resolve**: keep `vectorbt` in its own group
@@ -204,8 +215,10 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    behind a `portfolio.construct` interface (the seam the RL agent later plugs into).
 7. **Execution** — SimulatedBroker + Alpaca paper adapter behind one interface.
 8. **Orchestration** — Prefect deployments: daily ingest, weekly retrain, weekly rebalance.
-9. **Dashboard** — Streamlit pages: Overview/PnL, Signals, Positions, Model Diagnostics,
-   Monitoring (rolling IC, drift).
+9. **Dashboard** — (a) **FastAPI** backend (`src/quantis/api/`) exposing coverage,
+   universe, bars, signals, positions, model diagnostics as JSON; (b) **Next.js** frontend
+   (`frontend/`) with the 5 screens matching the mockups, consuming the API. Retire the
+   Streamlit smoke test once parity is reached.
 10. **RL agent (advanced / stretch)** — Gymnasium env wrapping the backtest, PPO/SAC via
     Stable-Baselines3, plugged into `portfolio.construct`; benchmark vs the rule-based
     baseline out-of-sample.
@@ -225,7 +238,9 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
 - `src/rl/env.py`, `src/rl/train.py`, `src/rl/agent.py` (advanced module)
 - `src/execution/base.py`, `src/execution/simulated.py`, `src/execution/alpaca.py`
 - `src/orchestration/flows.py`
-- `dashboard/app.py`
+- `src/quantis/api/main.py` (FastAPI app), `src/quantis/api/routes/*.py`
+- `frontend/` (Next.js app: `app/`, `components/`, `lib/api.ts`, Tailwind config)
+- `dashboard/app.py` (Streamlit smoke test — temporary)
 - `scripts/env_check.py`, `tests/test_env.py` (the environment gate)
 - `tests/test_leakage.py`, `tests/test_backtest.py`, `tests/test_features.py`
 
@@ -236,8 +251,10 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
 - `pytest` green — especially leakage and backtest-invariant tests.
 - A **reproducible backtest** produces a saved tearsheet (HTML/PNG) checked into
   `results/` so recruiters see performance without running anything.
-- `streamlit run dashboard/app.py` shows the equity curve, current signals, positions,
-  and model diagnostics against the populated Postgres DB.
+- `uv run uvicorn quantis.api.main:app` serves the JSON API; `npm run dev` in `frontend/`
+  serves the Next.js UI showing equity curve, signals, positions, and model diagnostics
+  against the populated Postgres DB. (Streamlit smoke test: `uv run streamlit run
+  dashboard/app.py` on :8502.)
 - README documents assumptions, limitations (survivorship bias in the starter universe,
   free-data quality), and next steps — demonstrating honest quant judgment.
 
@@ -256,7 +273,9 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
 - Env: **uv**, native Postgres, **no Docker**. Build in `D:\PythonProjects\trading-public`.
 - Data: one-time **copy** of existing OHLC into this project's DB; Alpaca for
   incremental bars + paper execution.
-- UI: dark quant-terminal, 5 screens — mocked in Claude Design, Streamlit to match.
+- UI: dark quant-terminal, 5 screens — mocked in Claude Design. **Stack: Next.js (React
+  + TS) frontend + FastAPI backend** (chosen over Streamlit for full-stack signal +
+  pixel-fidelity to the mockups). Streamlit kept only as a temporary data smoke test.
 - RL: portfolio-construction agent (PPO/SAC, Gymnasium) as an optional module behind the
   `portfolio.construct` seam — benchmarked against the rule-based baseline, not a
   signal replacement.

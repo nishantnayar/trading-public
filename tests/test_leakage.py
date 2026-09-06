@@ -36,9 +36,7 @@ def volume(close: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def test_future_bars_cannot_change_past_features(
-    close: pd.DataFrame, volume: pd.DataFrame
-) -> None:
+def test_future_bars_cannot_change_past_features(close: pd.DataFrame, volume: pd.DataFrame) -> None:
     """The core guard: truncating the future must not alter any earlier feature value.
 
     Computed on the full history, then on history truncated at `cut`. Every overlapping
@@ -98,9 +96,7 @@ def test_no_negative_shift_or_centred_window_in_source() -> None:
                 assert not is_true, f"{name}(center=True) peeks forward"
 
 
-def test_features_never_reference_another_symbol(
-    close: pd.DataFrame, volume: pd.DataFrame
-) -> None:
+def test_features_never_reference_another_symbol(close: pd.DataFrame, volume: pd.DataFrame) -> None:
     """Per-name features must be independent across the cross-section.
 
     Rolling windows on a wide frame are column-wise, but this pins the behaviour: changing

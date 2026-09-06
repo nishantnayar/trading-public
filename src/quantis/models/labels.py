@@ -71,9 +71,7 @@ def make_labels(
     clip: float | None = 5.0,
 ) -> pd.DataFrame:
     """Wide frame of per-date z-scored forward returns."""
-    return cross_sectional_zscore(
-        forward_return(close, horizon), min_names=min_names, clip=clip
-    )
+    return cross_sectional_zscore(forward_return(close, horizon), min_names=min_names, clip=clip)
 
 
 def to_long(labels: pd.DataFrame, name: str = "label") -> pd.DataFrame:

@@ -109,9 +109,7 @@ def test_log_dollar_volume_matches_manual(close: pd.DataFrame, volume: pd.DataFr
     assert out["BBB"].iloc[100] == pytest.approx(np.log1p(manual))
 
 
-def test_compute_all_returns_every_named_feature(
-    close: pd.DataFrame, volume: pd.DataFrame
-) -> None:
+def test_compute_all_returns_every_named_feature(close: pd.DataFrame, volume: pd.DataFrame) -> None:
     computed = fd.compute_all(close, volume)
     assert set(computed) == set(fd.FEATURE_NAMES)
     for name, frame in computed.items():

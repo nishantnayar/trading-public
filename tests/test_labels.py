@@ -59,9 +59,7 @@ def test_zscore_is_per_date_not_pooled() -> None:
     """Each row is standardised independently; a row-wide level shift must vanish."""
     base = {f"S{i}": [float(i), float(i) + 100.0] for i in range(30)}
     out = lb.cross_sectional_zscore(pd.DataFrame(base), min_names=5, clip=None)
-    pd.testing.assert_series_equal(
-        out.iloc[0], out.iloc[1], check_names=False, check_index=False
-    )
+    pd.testing.assert_series_equal(out.iloc[0], out.iloc[1], check_names=False, check_index=False)
 
 
 def test_thin_dates_are_dropped() -> None:

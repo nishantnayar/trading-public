@@ -1,32 +1,11 @@
-import os from "node:os";
-
 import type { NextConfig } from "next";
 
 /**
- * Non-internal IPv4 addresses of this machine, e.g. "192.168.86.248".
+ * No `allowedDevOrigins` entry is needed: the launcher binds `next dev` to 127.0.0.1
+ * (see `scripts/start.py`), so the dev server is never reachable over the LAN and
+ * cannot receive the cross-origin requests that Next blocks by default. Remote access
+ * is a deployment concern, not a dev-server one.
  */
-function lanAddresses(): string[] {
-  return Object.values(os.networkInterfaces())
-    .flat()
-    .filter((iface): iface is os.NetworkInterfaceInfo => iface !== undefined)
-    .filter((iface) => iface.family === "IPv4" && !iface.internal)
-    .map((iface) => iface.address);
-}
-
-const nextConfig: NextConfig = {
-  /**
-   * Next.js blocks cross-origin requests to dev-only resources (`/_next/hmr`) by
-   * default, so opening the LAN URL the launcher advertises silently kills Fast Refresh.
-   *
-   * The address is detected at startup rather than written literally: it is
-   * DHCP-assigned, so a hardcoded value would break on lease renewal and would be
-   * meaningless on any other machine cloning this repo. `allowedDevOrigins` only
-   * accepts exact origins — its wildcard support is limited to subdomains, so
-   * "192.168.x.*" is not an option.
-   *
-   * This affects development only; it has no effect on a production build.
-   */
-  allowedDevOrigins: lanAddresses(),
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;

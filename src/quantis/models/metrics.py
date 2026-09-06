@@ -30,6 +30,7 @@ def rank_ic_by_date(
     min_names: int = MIN_NAMES_FOR_IC,
 ) -> pd.Series:
     """Spearman rank correlation between prediction and label, per date."""
+
     def one_date(group: pd.DataFrame) -> float:
         if len(group) < min_names:
             return np.nan
@@ -53,6 +54,7 @@ def quantile_spread(
     This is the metric closest to what the strategy actually harvests: go long Q5, short
     Q1, and the spread is the gross edge before costs and sizing.
     """
+
     def one_date(group: pd.DataFrame) -> float:
         if len(group) < max(min_names, quantiles * 2):
             return np.nan
@@ -91,7 +93,5 @@ def summarise(
         "ic_t_stat": icir * np.sqrt(n) if not np.isnan(icir) else float("nan"),
         # Share of dates where the signal pointed the right way at all.
         "ic_hit_rate": float((ics > 0).mean()),
-        "q_spread": quantile_spread(
-            frame, pred_column, label_column, date_column, quantiles
-        ),
+        "q_spread": quantile_spread(frame, pred_column, label_column, date_column, quantiles),
     }

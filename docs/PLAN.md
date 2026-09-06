@@ -232,9 +232,20 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    feature vectors are **required, not imputed**. Result: rank IC 0.0178 gross over 5
    folds — see `docs/PROGRESS.md` and `docs/LIMITATIONS.md`. Run with
    `uv run python -m quantis.models.train`.
-5. **Backtester** — vectorbt weight-matrix backtest with costs/slippage/turnover;
-   tearsheet (CAGR, Sharpe, Sortino, max DD, hit rate, turnover, IC) via quantstats.
-6. **Portfolio & risk** — ranking → weights, vol-targeting, sector/name caps, rebalancer
+5. **Backtester** — ✅ **done.** Weight-matrix backtest with turnover costs
+   (`backtest/portfolio.py`, `backtest/engine.py`, `backtest/run.py`): dollar-neutral
+   quintile long/short, weekly rebalance, lagged trade timing, and a cost sweep reporting
+   break-even bps. Implemented in pandas rather than vectorbt — the P&L is a two-line
+   matrix product and a transparent, unit-tested implementation was worth more than the
+   dependency; vectorbt and quantstats remain installed if a tearsheet is wanted.
+   Outcome: break-even 15.7 bps/side, so the signal is real but not investable at
+   realistic cost. Run with `uv run python -m quantis.backtest.run`.
+6. **Portfolio & risk** — 🟡 **in progress.** No-trade buffer, longer hold, and
+   sector-neutral construction are implemented and compared on the Phase 5 OOF file
+   (`backtest/portfolio.py`, `backtest/compare.py`). Combined buffer + 10-session hold
+   is the only variant that beats the Phase 5 book on cost capacity (BE 25.4 vs 15.7
+   bps). Sector-neutralisation currently has **no edge**. Vol-targeting, name caps, and
+   rank-weighting are still open. Run `uv run python -m quantis.backtest.compare`.
    behind a `portfolio.construct` interface (the seam the RL agent later plugs into).
 7. **Execution** — SimulatedBroker + Alpaca paper adapter behind one interface.
 8. **Orchestration** — Prefect deployments: daily ingest, weekly retrain, weekly rebalance.

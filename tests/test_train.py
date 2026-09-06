@@ -54,9 +54,7 @@ def test_model_recovers_a_planted_signal(synthetic: pd.DataFrame, fast_params: d
     assert metrics.summarise(scored)["rank_ic"] > 0.15
 
 
-def test_shuffled_labels_destroy_the_signal(
-    synthetic: pd.DataFrame, fast_params: dict
-) -> None:
+def test_shuffled_labels_destroy_the_signal(synthetic: pd.DataFrame, fast_params: dict) -> None:
     """Permutation control: shuffling labels within each date must collapse IC to ~0."""
     rng = np.random.default_rng(7)
     shuffled = synthetic.copy()
@@ -72,9 +70,7 @@ def test_shuffled_labels_destroy_the_signal(
     assert abs(metrics.summarise(scored)["rank_ic"]) < 0.05
 
 
-def test_predictions_cover_every_validation_row(
-    synthetic: pd.DataFrame, fast_params: dict
-) -> None:
+def test_predictions_cover_every_validation_row(synthetic: pd.DataFrame, fast_params: dict) -> None:
     cutoff = synthetic["date"].quantile(0.8)
     valid = synthetic[synthetic["date"] > cutoff]
     _, scored = fit_fold(synthetic[synthetic["date"] <= cutoff], valid, fast_params, 60)
@@ -83,16 +79,12 @@ def test_predictions_cover_every_validation_row(
     assert scored["pred"].notna().all()
 
 
-def test_cv_folds_train_and_score_end_to_end(
-    synthetic: pd.DataFrame, fast_params: dict
-) -> None:
+def test_cv_folds_train_and_score_end_to_end(synthetic: pd.DataFrame, fast_params: dict) -> None:
     cv = PurgedWalkForwardCV(n_splits=3, horizon=5, embargo=5, min_train_dates=120)
     results = []
 
     for train_idx, valid_idx in cv.split(synthetic):
-        _, scored = fit_fold(
-            synthetic.iloc[train_idx], synthetic.iloc[valid_idx], fast_params, 60
-        )
+        _, scored = fit_fold(synthetic.iloc[train_idx], synthetic.iloc[valid_idx], fast_params, 60)
         results.append(metrics.summarise(scored)["rank_ic"])
 
     assert len(results) >= 2

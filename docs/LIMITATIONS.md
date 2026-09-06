@@ -195,6 +195,60 @@ importance is dominated by `vol_60d` and `mom_12_1` largely by default.
   (60-day vol, 200-day MA) is far longer-lived than 10 sessions; a longer embargo would
   be more conservative and would cost more history.
 
+## Backtest (Phase 5)
+
+### The strategy does not survive realistic costs
+
+Break-even is **15.7 bps per side**. At 10 bps the net result is CAGR 1.74% / Sharpe 0.28
+over 915 days; at 20 bps it is negative. Gross Sharpe is 0.78. **Do not quote the gross
+figure without the cost curve** — the honest headline is "positive but not investable".
+
+**Turnover (34.2x annualised) is the binding constraint.** A weekly full-quintile swap
+has zero position inertia: a name that drifts one rank past the cutoff is liquidated. The
+signal is thin per name, so almost all of it is spent on execution.
+
+Phase 6 tested the obvious construction fixes. A **no-trade buffer plus a 10-session
+hold** cuts turnover to 13.4x and lifts break-even to **25.4 bps**. That is better, not
+solved: at 10 bps Sharpe is 0.31 (still inside sampling noise of the 0.28 baseline) and
+the book still dies at a conservative 20 bps if you insist on the original weekly
+schedule. **Sector-neutralising destroys the signal** (Sharpe -0.21) — the 5.3% IT tilt
+was the edge, not leftover risk. See `docs/PROGRESS.md` Phase 6.
+
+### What the cost model does and does not include
+
+`cost = |w(t) - w(t-1)| * bps_per_side` covers commission plus half the bid-ask spread as
+a flat rate. It **excludes**:
+
+- **Market impact** — no participation-rate or square-root impact term. Fine at small
+  size, wrong at scale, and the IEX-only volume data cannot support a real capacity
+  estimate anyway (see Price data).
+- **Borrow cost and short availability** — the short leg is assumed freely shortable at
+  no fee. Hard-to-borrow names are neither excluded nor charged.
+- **Financing** — Sharpe is excess-of-zero on the assumption that a dollar-neutral book
+  roughly self-funds.
+- **Slippage dispersion** — one flat rate for every name and every day, whereas real
+  spreads widen precisely when the book most wants to trade.
+
+### Other backtest caveats
+
+- **Evaluable window is 2023-01 to 2026-08 (3.6 years)**, not the panel's full 5.1: the
+  first CV fold was dropped for insufficient training data, and the backtest only
+  consumes out-of-fold predictions. 915 days is a short sample for a Sharpe estimate —
+  the standard error on Sharpe here is roughly 0.33, so 0.28 net is not
+  distinguishable from zero.
+- **The IT tilt *is* the alpha.** Mean net exposure of 5.3% in Information Technology
+  was left unmanaged in Phase 5. Forcing sector-neutrality in Phase 6 zeroed the tilt
+  and took Sharpe@10bps from +0.28 to **-0.21**. Live with the tilt and disclose it, or
+  accept there is currently no sector-neutral version of this signal. Do not "fix" it
+  and keep quoting the dollar-neutral Sharpe.
+- **No beta neutralisation** — the two legs are equal-weight, not beta-matched, so the
+  book carries residual market exposure.
+- **Execution at the close is assumed to be free of timing risk.** Weights are formed
+  from the same close that prices the trade; a real implementation fills over a window
+  and would differ.
+- **Fixed quintile count and schedule** were not tuned. Any sweep of them must be treated
+  as parameter search on out-of-fold data, which is a second-order overfit.
+
 ## Universe
 
 - **Survivorship bias** — `data/universe/sp500.csv` is the *current* S&P 500. Names that
@@ -223,6 +277,13 @@ importance is dominated by `vol_60d` and `mom_12_1` largely by default.
 
 ## Dashboard
 
+- **The dev stack is loopback-only and not deployable as-is.** All three services bind
+  `127.0.0.1`, and the frontend reads `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`.
+  Deploying the Next app to Vercel would therefore render the shell with **no data**: the
+  visitor's browser would call *their own* localhost. A hosted dashboard needs three
+  things first — the FastAPI service publicly reachable, **Postgres hosted** (it is
+  currently a local install with no managed instance), and the deployed origin added to
+  `api_cors_origins`. Vercel can host the frontend, but not the data layer behind it.
 - **Signals / Positions / Model screens show mockup figures.** They are labeled
   illustrative in the UI. Real numbers arrive with Phases 4–7 (model, backtest,
   portfolio, execution). Overview and Monitoring are already live against Postgres.

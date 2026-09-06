@@ -103,13 +103,21 @@ def services() -> list[Service]:
         Service(
             name="api",
             command=[
-                "uv", "run", "uvicorn", "quantis.api.main:app",
-                "--host", "127.0.0.1", "--port", str(API_PORT),
+                "uv",
+                "run",
+                "uvicorn",
+                "quantis.api.main:app",
+                "--host",
+                "127.0.0.1",
+                "--port",
+                str(API_PORT),
                 # Scope the watcher to source. The default watches
                 # the whole repo, which means .venv, node_modules,
                 # .next and mlruns - so writing a model artifact
                 # during training would restart the API mid-request.
-                "--reload", "--reload-dir", str(REPO / "src"),
+                "--reload",
+                "--reload-dir",
+                str(REPO / "src"),
             ],
             color=paint("\033[36m"),  # cyan
             port=API_PORT,
@@ -117,7 +125,25 @@ def services() -> list[Service]:
         ),
         Service(
             name="ui",
-            command=[NPM, "run", "dev", "--", "--port", str(UI_PORT)],
+            command=[
+                NPM,
+                "run",
+                "dev",
+                "--",
+                "--port",
+                str(UI_PORT),
+                # Match the API and Prefect, which both bind
+                # loopback only. Next otherwise listens on
+                # 0.0.0.0 and advertises a LAN URL that cannot
+                # actually work: the browser would resolve the
+                # baked-in NEXT_PUBLIC_API_URL of 127.0.0.1 as
+                # the *viewing* device. Loading that URL also
+                # tripped Next's cross-origin block on
+                # /_next/hmr, silently disabling Fast Refresh.
+                # Remote access belongs on a real deployment.
+                "--hostname",
+                "127.0.0.1",
+            ],
             color=paint("\033[35m"),  # magenta
             port=UI_PORT,
             cwd=REPO / "frontend",
@@ -151,11 +177,7 @@ def port_owner(port: int) -> int | None:
     )
     for line in result.stdout.splitlines():
         parts = line.split()
-        if (
-            len(parts) >= 5
-            and parts[3] == "LISTENING"
-            and parts[1].endswith(f":{port}")
-        ):
+        if len(parts) >= 5 and parts[3] == "LISTENING" and parts[1].endswith(f":{port}"):
             return int(parts[4])
     return None
 
@@ -179,26 +201,15 @@ def preflight(selected: list[Service]) -> tuple[list[str], list[str]]:
             if probe.connect_ex(("127.0.0.1", service.port)) != 0:
                 continue
         pid = port_owner(service.port)
-        owner = (
-            f" by PID {pid} - stop it with: "
-            f"taskkill /PID {pid} /T /F" if pid else ""
-        )
-        blockers.append(
-            f"port {service.port} ('{service.name}') is already "
-            f"in use{owner}"
-        )
+        owner = f" by PID {pid} - stop it with: " f"taskkill /PID {pid} /T /F" if pid else ""
+        blockers.append(f"port {service.port} ('{service.name}') is already " f"in use{owner}")
 
     if "ui" in names:
         if not (REPO / "frontend" / "node_modules").exists():
-            problems.append(
-                "frontend/node_modules missing - run: "
-                "npm install (in frontend/)"
-            )
+            problems.append("frontend/node_modules missing - run: " "npm install (in frontend/)")
         env_local = REPO / "frontend" / ".env.local"
         if not env_local.exists():
-            env_local.write_text(
-                f"NEXT_PUBLIC_API_URL=http://127.0.0.1:{API_PORT}\n"
-            )
+            env_local.write_text(f"NEXT_PUBLIC_API_URL=http://127.0.0.1:{API_PORT}\n")
             print(f"wrote {env_local.relative_to(REPO)}")
 
     if "prefect" in names:
@@ -212,10 +223,7 @@ def preflight(selected: list[Service]) -> tuple[list[str], list[str]]:
 
             settings = get_settings()
             if not settings.has_db_password:
-                problems.append(
-                    "PGPASSWORD not set in .env - API queries will "
-                    "return 503"
-                )
+                problems.append("PGPASSWORD not set in .env - API queries will " "return 503")
             else:
                 dsn = (
                     f"host={settings.pghost} port={settings.pgport} "
@@ -226,8 +234,7 @@ def preflight(selected: list[Service]) -> tuple[list[str], list[str]]:
                     pass
         except Exception as exc:  # noqa: BLE001
             problems.append(
-                f"Postgres unreachable ({type(exc).__name__}) - "
-                "is the service running?"
+                f"Postgres unreachable ({type(exc).__name__}) - " "is the service running?"
             )
 
     return blockers, problems
@@ -272,9 +279,7 @@ def stop(process: subprocess.Popen) -> None:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(
-        description="Start the Quantis local stack."
-    )
+    parser = argparse.ArgumentParser(description="Start the Quantis local stack.")
     parser.add_argument(
         "--only",
         nargs="+",
@@ -336,9 +341,7 @@ def main(argv: list[str] | None = None) -> int:
                 bufsize=1,
             )
             running.append((service, process))
-            threading.Thread(
-                target=pump, args=(service, process), daemon=True
-            ).start()
+            threading.Thread(target=pump, args=(service, process), daemon=True).start()
 
         print("\nQuantis stack:")
         for service in selected:
@@ -350,10 +353,7 @@ def main(argv: list[str] | None = None) -> int:
             for service, process in running:
                 code = process.poll()
                 if code is not None:
-                    print(
-                        f"\n[{service.name}] exited with code "
-                        f"{code} - stopping stack."
-                    )
+                    print(f"\n[{service.name}] exited with code " f"{code} - stopping stack.")
                     return code or 1
             try:
                 running[0][1].wait(timeout=1)

@@ -132,23 +132,35 @@ def main() -> None:
 
             fig = go.Figure(
                 go.Candlestick(
-                    x=bars["date"], open=bars["open"], high=bars["high"],
-                    low=bars["low"], close=bars["close"],
-                    increasing_line_color=GREEN, decreasing_line_color=RED, name=sym,
+                    x=bars["date"],
+                    open=bars["open"],
+                    high=bars["high"],
+                    low=bars["low"],
+                    close=bars["close"],
+                    increasing_line_color=GREEN,
+                    decreasing_line_color=RED,
+                    name=sym,
                 )
             )
             fig.update_layout(
-                template="plotly_dark", height=420, margin=dict(l=0, r=0, t=10, b=0),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
+                template="plotly_dark",
+                height=420,
+                margin=dict(l=0, r=0, t=10, b=0),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
                 xaxis_rangeslider_visible=False,
             )
             st.plotly_chart(fig, use_container_width=True)
 
             vol = go.Figure(go.Bar(x=bars["date"], y=bars["volume"], marker_color=TEAL))
             vol.update_layout(
-                template="plotly_dark", height=140, margin=dict(l=0, r=0, t=0, b=0),
-                paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)",
-                yaxis_title=None, xaxis_title=None,
+                template="plotly_dark",
+                height=140,
+                margin=dict(l=0, r=0, t=0, b=0),
+                paper_bgcolor="rgba(0,0,0,0)",
+                plot_bgcolor="rgba(0,0,0,0)",
+                yaxis_title=None,
+                xaxis_title=None,
             )
             st.plotly_chart(vol, use_container_width=True)
             st.caption("Volume is IEX-feed only (free tier) — understated vs full market.")

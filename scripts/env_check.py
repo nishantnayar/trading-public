@@ -94,10 +94,7 @@ def run_db_check() -> tuple[bool, str]:
         return False, f"could not load settings: {exc}"
 
     if not settings.has_db_password:
-        return True, (
-            "SKIPPED — no PGPASSWORD in .env yet "
-            "(set it to run the DB ping)"
-        )
+        return True, ("SKIPPED — no PGPASSWORD in .env yet " "(set it to run the DB ping)")
 
     try:
         import psycopg
@@ -110,7 +107,10 @@ def run_db_check() -> tuple[bool, str]:
         with psycopg.connect(dsn, connect_timeout=5) as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT version();")
-                ver = cur.fetchone()[0]
+                row = cur.fetchone()
+        if row is None:
+            return False, "SELECT version() returned no row"
+        ver = row[0]
         return True, f"connected — {ver.split(',')[0]}"
     except Exception as exc:  # noqa: BLE001
         return False, f"{type(exc).__name__}: {exc}"
@@ -129,10 +129,7 @@ def main() -> int:
     if import_failures == 0 and db_ok:
         print("ENV GATE: PASS")
         return 0
-    print(
-        f"ENV GATE: FAIL  ({import_failures} import failure(s), "
-        f"db_ok={db_ok})"
-    )
+    print(f"ENV GATE: FAIL  ({import_failures} import failure(s), " f"db_ok={db_ok})")
     return 1
 
 

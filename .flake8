@@ -1,0 +1,12 @@
+[flake8]
+max-line-length = 100
+extend-ignore = E203, E701
+exclude =
+    .git,
+    .venv,
+    __pycache__,
+    .mypy_cache,
+    .ruff_cache,
+    .pytest_cache,
+    frontend,
+    node_modules

@@ -13,35 +13,45 @@ import { apiGet } from "./api";
  * previous symbol.
  */
 export function useApi<T>(path: string | null) {
-  const [data, setData] = useState<T | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<{
+    path: string;
+    data: T | null;
+    error: string | null;
+  } | null>(null);
 
   useEffect(() => {
     if (!path) {
-      setLoading(false);
       return;
     }
 
     const controller = new AbortController();
-    setLoading(true);
 
     apiGet<T>(path, controller.signal)
       .then((value) => {
-        setData(value);
-        setError(null);
-        setLoading(false);
+        setResult({ path, data: value, error: null });
       })
       .catch((err: unknown) => {
         // An abort is a deliberate cancellation, not a failure: leave state untouched
         // so the replacement request owns it.
         if (controller.signal.aborted) return;
-        setError(err instanceof Error ? err.message : String(err));
-        setLoading(false);
+        setResult({
+          path,
+          data: null,
+          error: err instanceof Error ? err.message : String(err),
+        });
       });
 
     return () => controller.abort();
   }, [path]);
 
-  return { data, error, loading };
+  if (!path) {
+    return { data: null, error: null, loading: false };
+  }
+
+  const matched = result !== null && result.path === path;
+  return {
+    data: matched ? result.data : null,
+    error: matched ? result.error : null,
+    loading: !matched,
+  };
 }

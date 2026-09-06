@@ -48,4 +48,6 @@ def test_db_ping_if_configured() -> None:
     )
     with psycopg.connect(dsn, connect_timeout=5) as conn, conn.cursor() as cur:
         cur.execute("SELECT 1;")
-        assert cur.fetchone()[0] == 1
+        row = cur.fetchone()
+        assert row is not None
+        assert row[0] == 1

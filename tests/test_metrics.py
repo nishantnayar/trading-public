@@ -83,7 +83,13 @@ def test_quantile_spread_negative_for_inverted_signal() -> None:
 def test_summarise_reports_expected_keys() -> None:
     out = metrics.summarise(panel(n_dates=40, noise=1.0, seed=5))
     assert set(out) >= {
-        "n_dates", "rank_ic", "ic_std", "icir", "ic_t_stat", "ic_hit_rate", "q_spread",
+        "n_dates",
+        "rank_ic",
+        "ic_std",
+        "icir",
+        "ic_t_stat",
+        "ic_hit_rate",
+        "q_spread",
     }
     assert out["n_dates"] == 40
     assert 0.0 <= out["ic_hit_rate"] <= 1.0

@@ -51,9 +51,7 @@ LGBM_PARAMS = {
 NUM_ROUNDS = 400
 
 
-def fit_fold(
-    train: pd.DataFrame, valid: pd.DataFrame, params: dict, num_rounds: int = NUM_ROUNDS
-):
+def fit_fold(train: pd.DataFrame, valid: pd.DataFrame, params: dict, num_rounds: int = NUM_ROUNDS):
     """Fit one fold and return (booster, validation frame with predictions)."""
     import lightgbm as lgb
 
@@ -139,6 +137,9 @@ def run(
     oof_frame = pd.concat(oof, ignore_index=True)
     overall = metrics.summarise(oof_frame)
     overall["folds"] = len(fold_metrics)
+
+    if booster is None:
+        raise RuntimeError("no CV folds produced a model")
 
     importance = shap_importance(booster, oof_frame.merge(panel, on=["symbol", "date"]))
     logger.info("top features:\n{}", importance.head(6).to_string(index=False))

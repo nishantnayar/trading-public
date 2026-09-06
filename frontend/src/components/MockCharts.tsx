@@ -42,13 +42,13 @@ export function EquityCurve() {
         strokeWidth="2.4"
       />
       <text x="55" y="290" fill="#5f6b78" fontSize="11" fontFamily="IBM Plex Mono">
-        Sep'25
+        {"Sep'25"}
       </text>
       <text x="410" y="290" textAnchor="middle" fill="#5f6b78" fontSize="11" fontFamily="IBM Plex Mono">
-        Mar'26
+        {"Mar'26"}
       </text>
       <text x="800" y="290" textAnchor="end" fill="#5f6b78" fontSize="11" fontFamily="IBM Plex Mono">
-        Sep'26
+        {"Sep'26"}
       </text>
     </svg>
   );
@@ -140,10 +140,10 @@ export function RankIcBars() {
         <rect x="456" y="150" width="26" height="18" fill="#f43f5e" />
       </g>
       <text x="48" y="285" fill="#5f6b78" fontSize="10" fontFamily="IBM Plex Mono">
-        Sep'25
+        {"Sep'25"}
       </text>
       <text x="482" y="285" textAnchor="end" fill="#5f6b78" fontSize="10" fontFamily="IBM Plex Mono">
-        Sep'26
+        {"Sep'26"}
       </text>
     </svg>
   );

@@ -37,8 +37,7 @@ def main(argv: list[str]) -> int:
     if use_all:
         symbols = active_symbols()
         logger.warning(
-            "full backfill of {} symbols — sequential yfinance "
-            "calls, expect ~{:.0f} min",
+            "full backfill of {} symbols — sequential yfinance " "calls, expect ~{:.0f} min",
             len(symbols),
             len(symbols) * (THROTTLE_SECONDS + 1.5) / 60,
         )

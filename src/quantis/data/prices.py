@@ -21,9 +21,7 @@ BAR_COLUMNS = ["symbol", "date", "open", "high", "low", "close", "volume", "vwap
 class PriceSource(Protocol):
     name: str
 
-    def get_daily_bars(
-        self, symbols: list[str], start: dt.date, end: dt.date
-    ) -> pd.DataFrame:
+    def get_daily_bars(self, symbols: list[str], start: dt.date, end: dt.date) -> pd.DataFrame:
         """Return a long DataFrame with BAR_COLUMNS (one row per symbol-date)."""
         ...
 
@@ -50,9 +48,7 @@ class AlpacaDailyBars:
     def _from_alpaca(sym: str) -> str:
         return sym.replace(".", "-")
 
-    def get_daily_bars(
-        self, symbols: list[str], start: dt.date, end: dt.date
-    ) -> pd.DataFrame:
+    def get_daily_bars(self, symbols: list[str], start: dt.date, end: dt.date) -> pd.DataFrame:
         from alpaca.common.exceptions import APIError
         from alpaca.data.enums import Adjustment, DataFeed
         from alpaca.data.requests import StockBarsRequest
@@ -85,7 +81,7 @@ class AlpacaDailyBars:
         else:
             return pd.DataFrame(columns=BAR_COLUMNS)
 
-        df = resp.df
+        df = getattr(resp, "df", None)
         if df is None or df.empty:
             logger.warning("Alpaca returned no bars for {} symbols", len(request_syms))
             return pd.DataFrame(columns=BAR_COLUMNS)

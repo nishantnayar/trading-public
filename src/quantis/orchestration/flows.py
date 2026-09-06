@@ -12,7 +12,12 @@ from loguru import logger
 from prefect import flow, task
 
 from quantis.data.prices import AlpacaDailyBars
-from quantis.data.store import bar_coverage, upsert_daily_bars
+from quantis.data.store import (
+    bar_coverage,
+    finish_ingest_run,
+    start_ingest_run,
+    upsert_daily_bars,
+)
 from quantis.data.universe import active_symbols, seed_symbols
 
 DEFAULT_START = dt.date(2016, 1, 1)  # Alpaca IEX history begins ~2016
@@ -39,14 +44,31 @@ def ingest_daily_bars(
     symbols = active_symbols()
     logger.info("ingesting {} symbols {} .. {}", len(symbols), start, end)
 
+    run_id = start_ingest_run("ingest-daily-bars")
     total = 0
-    for i in range(0, len(symbols), batch_size):
-        batch = symbols[i : i + batch_size]
-        total += _fetch_and_store(batch, start, end)
-
-    coverage = bar_coverage()
-    logger.info("ingest complete: {}", coverage)
-    return coverage
+    try:
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i : i + batch_size]
+            total += _fetch_and_store(batch, start, end)
+        coverage = bar_coverage()
+        finish_ingest_run(
+            run_id,
+            status="success",
+            symbols_processed=len(symbols),
+            rows_written=total,
+            detail=f"{coverage.get('start')} -> {coverage.get('end')}",
+        )
+        logger.info("ingest complete: {}", coverage)
+        return coverage
+    except Exception as exc:
+        finish_ingest_run(
+            run_id,
+            status="failed",
+            symbols_processed=len(symbols),
+            rows_written=total,
+            detail=str(exc),
+        )
+        raise
 
 
 if __name__ == "__main__":

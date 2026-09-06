@@ -12,6 +12,7 @@ from sqlalchemy import (
     ForeignKey,
     Numeric,
     String,
+    Text,
     func,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
@@ -160,3 +161,62 @@ class IngestRun(Base):
     rows_written: Mapped[int | None] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), default="running")
     detail: Mapped[str | None] = mapped_column(String(512))
+
+
+class Prediction(Base):
+    """Out-of-fold model score for a symbol on a date.
+
+    Every row is from a fold whose training window ended before `date`, so these are
+    the scores the backtest and the Signals screen are allowed to show.
+    """
+
+    __tablename__ = "predictions"
+
+    symbol: Mapped[str] = mapped_column(
+        String(16), ForeignKey("symbols.symbol", ondelete="CASCADE"), primary_key=True
+    )
+    date: Mapped[dt.date] = mapped_column(Date, primary_key=True, index=True)
+    pred: Mapped[float] = mapped_column(Numeric(18, 8))
+    label: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    source: Mapped[str] = mapped_column(String(64), default="oof")
+
+
+class Position(Base):
+    """Target weight for a symbol on a date (non-zero cells of the held book).
+
+    These are *target* weights from the backtest constructor, not broker fills.
+    """
+
+    __tablename__ = "positions"
+
+    symbol: Mapped[str] = mapped_column(
+        String(16), ForeignKey("symbols.symbol", ondelete="CASCADE"), primary_key=True
+    )
+    date: Mapped[dt.date] = mapped_column(Date, primary_key=True, index=True)
+    weight: Mapped[float] = mapped_column(Numeric(18, 8))
+    construction: Mapped[str] = mapped_column(String(64))
+
+
+class ModelRun(Base):
+    """Headline diagnostics for the currently published model + book."""
+
+    __tablename__ = "model_runs"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    published_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    oof_source: Mapped[str] = mapped_column(String(128))
+    construction: Mapped[str] = mapped_column(String(64))
+    as_of: Mapped[dt.date | None] = mapped_column(Date)
+    n_dates: Mapped[int | None] = mapped_column(BigInteger)
+    n_symbols: Mapped[int | None] = mapped_column(BigInteger)
+    rank_ic: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    icir: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    ic_hit_rate: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    q_spread: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    sharpe_10bps: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    turnover: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    break_even_bps: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    shap_json: Mapped[str | None] = mapped_column(Text)
+    params_json: Mapped[str | None] = mapped_column(Text)

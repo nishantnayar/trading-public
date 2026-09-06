@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+from datetime import UTC, datetime
 
 import pandas as pd
 from loguru import logger
@@ -10,7 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.dialects.postgresql import insert
 
 from quantis.db.engine import session_scope
-from quantis.db.models import DailyBar, Fundamental
+from quantis.db.models import DailyBar, Fundamental, IngestRun
 
 
 def _clean(value):
@@ -138,3 +139,32 @@ def bar_coverage() -> dict:
         dmin = session.scalar(select(func.min(DailyBar.date)))
         dmax = session.scalar(select(func.max(DailyBar.date)))
     return {"rows": n, "symbols": nsym, "start": dmin, "end": dmax}
+
+
+def start_ingest_run(flow: str) -> int:
+    """Insert a running audit row; returns its id."""
+    with session_scope() as session:
+        row = IngestRun(flow=flow, status="running")
+        session.add(row)
+        session.flush()
+        return int(row.id)
+
+
+def finish_ingest_run(
+    run_id: int,
+    *,
+    status: str,
+    symbols_processed: int | None = None,
+    rows_written: int | None = None,
+    detail: str | None = None,
+) -> None:
+    """Close an audit row started by `start_ingest_run`."""
+    with session_scope() as session:
+        row = session.get(IngestRun, run_id)
+        if row is None:
+            return
+        row.status = status
+        row.finished_at = datetime.now(UTC)
+        row.symbols_processed = symbols_processed
+        row.rows_written = rows_written
+        row.detail = (detail or "")[:512] or None

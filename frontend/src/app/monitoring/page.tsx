@@ -110,11 +110,11 @@ export default function MonitoringPage() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, padding: "32px 14px" }}>
               <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.1em", color: C.accent }}>NO ROWS YET</div>
               <div style={{ fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: C.t3, maxWidth: "46ch" }}>
-                The daily ingest flow does not write the audit table yet. Once it does, every run lands here with symbols
-                processed, rows written and failure detail.
+                No audit rows yet. Daily ingest and score-publish both write this table
+                (`ingest-daily-bars`, `publish-scores`).
               </div>
               <div style={{ border: `1px solid ${C.cap}`, padding: "5px 10px", fontFamily: MONO, fontSize: 11, color: C.t2 }}>
-                Blocked on Phase 8 · Prefect deployments
+                uv run python -m quantis.backtest.publish
               </div>
             </div>
           )}

@@ -41,7 +41,7 @@ prices, and pipeline status.
 | **Model** | LightGBM + purged walk-forward CV, MLflow tracking, SHAP |
 | **Backtest** | Dollar-neutral quintile L/S, cost sweep, Phase 6 construction levers |
 | **Ingest** | Prefect `ingest-daily-bars` under an isolated local profile (`:4201`) |
-| **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview and Monitoring are live |
+| **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Model, Monitoring |
 
 **Result so far — a real signal that costs eat.** Out-of-fold rank IC **0.018**; the
 long/short book returns **5.3% CAGR at Sharpe 0.78 gross**, but **1.7% at Sharpe 0.28**
@@ -118,6 +118,7 @@ uv run python -m quantis.models.train
 # 4e. Backtest the out-of-fold predictions, net of costs
 uv run python -m quantis.backtest.run
 uv run python -m quantis.backtest.compare   # Phase 6 levers at 10 bps
+uv run python -m quantis.backtest.publish   # scores + weights into Postgres for the UI
 
 # 5. Local stack: FastAPI :8000, Next.js :3000, Prefect :4201
 uv run python scripts/start.py

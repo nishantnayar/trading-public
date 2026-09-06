@@ -37,5 +37,64 @@ export type IngestRun = {
   detail: string | null;
 };
 
+export type SignalRow = {
+  rank?: number;
+  symbol?: string;
+  sector?: string;
+  score?: number;
+  pctl?: number;
+  weight?: number;
+  side?: string;
+  gap?: boolean;
+  label?: string;
+};
+
+export type SignalsSnapshot = {
+  as_of: string | null;
+  rows: SignalRow[];
+  meta: {
+    horizon?: string;
+    scored?: number;
+    longs?: number;
+    shorts?: number;
+    construction?: string;
+  };
+};
+
+export type Quintile = { label: string; v: number };
+
+export type PositionHolding = {
+  symbol: string;
+  sector: string;
+  weight: number;
+  side: string;
+};
+
+export type PositionsSnapshot = {
+  as_of: string | null;
+  construction?: string;
+  holdings: PositionHolding[];
+  n_holdings?: number;
+  constraints: { label: string; value: string; limit: string; used: number }[];
+  rebalance: { buys: number; sells: number; turnover: number; prior: string | null };
+};
+
+export type ModelSnapshot = {
+  as_of: string | null;
+  oof_source: string;
+  construction: string;
+  n_dates: number | null;
+  n_symbols: number | null;
+  rank_ic: number | null;
+  icir: number | null;
+  ic_hit_rate: number | null;
+  q_spread: number | null;
+  sharpe_10bps: number | null;
+  turnover: number | null;
+  break_even_bps: number | null;
+  shap: { feature: string; gain: number; family: string }[];
+  params: Record<string, string | number>;
+};
+
 /** IEX free-tier fact, surfaced in the UI (not returned by /coverage). */
 export const FEED_LABEL = "IEX · adjusted";

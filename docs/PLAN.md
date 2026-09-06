@@ -253,10 +253,9 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    universe, bars, signals, positions, model diagnostics as JSON; (b) **Next.js** frontend
    (`frontend/`) with the 5 screens matching the mockups, consuming the API. Retire the
    Streamlit smoke test once parity is reached.
-   **Status:** scaffold is live. `scripts/start.ps1` launches API `:8000`, UI `:3000`,
-   and Prefect `:4201`. Overview and Monitoring read Postgres; Signals / Positions /
-   Model are labeled mockups until Phases 4–7. Streamlit remains at
-   `scripts/dashboard.ps1` (`:8502`) as a temporary smoke test.
+   **Status:** all 5 screens read Postgres. Signals / Positions / Model consume
+   published OOF scores and the working book (`buffer=1, every=10`). Positions are
+   target weights, not broker fills. Streamlit remains at `scripts/dashboard.ps1`.
 10. **RL agent (advanced / stretch)** — Gymnasium env wrapping the backtest, PPO/SAC via
     Stable-Baselines3, plugged into `portfolio.construct`; benchmark vs the rule-based
     baseline out-of-sample.

@@ -262,9 +262,9 @@ a flat rate. It **excludes**:
 - **No Alembic migrations** — schema is created with `Base.metadata.create_all()` via
   `scripts/init_db.py`. Alembic is a declared dependency but unconfigured; fine while
   tables are additive, needs doing before any destructive column change.
-- **`ingest_runs` is never written** — the table and API endpoint exist, but
-  `orchestration/flows.py` does not record runs, so the Monitoring screen shows an empty
-  audit table.
+- **`ingest_runs` is written** by `ingest-daily-bars` and `publish-scores`. Older docs
+  said it was empty by design; that is no longer true. Scheduled Prefect deployments
+  (daily/weekly) are still Phase 8.
 - **No `YFinancePrices` fallback** — `PriceSource` is a protocol with only
   `AlpacaDailyBars` implementing it, despite the plan naming a fallback.
 
@@ -284,6 +284,8 @@ a flat rate. It **excludes**:
   things first — the FastAPI service publicly reachable, **Postgres hosted** (it is
   currently a local install with no managed instance), and the deployed origin added to
   `api_cors_origins`. Vercel can host the frontend, but not the data layer behind it.
-- **Signals / Positions / Model screens show mockup figures.** They are labeled
-  illustrative in the UI. Real numbers arrive with Phases 4–7 (model, backtest,
-  portfolio, execution). Overview and Monitoring are already live against Postgres.
+- **Positions are target weights, not fills.** The Positions screen shows the published
+  working book (`buffer=1`, 10-session hold). There is no SimulatedBroker / Alpaca paper
+  adapter yet, so there is no quantity, market value, or uPnL — those would be fiction.
+  Restart the UI after `publish` so Next picks up API changes; uvicorn `--reload-dir src`
+  covers the backend.

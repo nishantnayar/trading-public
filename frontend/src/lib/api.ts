@@ -15,14 +15,6 @@ export type Coverage = {
   end: string | null;
 };
 
-export type UniverseRow = {
-  symbol: string;
-  name: string | null;
-  sector: string | null;
-  bars: number;
-  last_bar: string | null;
-};
-
 export type SectorCount = { sector: string; count: number };
 
 export type Bar = {
@@ -44,3 +36,6 @@ export type IngestRun = {
   status: string;
   detail: string | null;
 };
+
+/** IEX free-tier fact, surfaced in the UI (not returned by /coverage). */
+export const FEED_LABEL = "IEX · adjusted";

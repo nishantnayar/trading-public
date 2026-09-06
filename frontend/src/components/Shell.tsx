@@ -1,128 +1,151 @@
 "use client";
 
-import type { ReactNode, SVGProps } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
-import { cls } from "@/lib/format";
+import { NAV, PROVENANCE, TAPE } from "@/lib/illustrative";
+import { C, MONO } from "@/lib/palette";
+import { nowClockCT } from "@/lib/format";
 
-function Icon({ children, ...props }: SVGProps<SVGSVGElement> & { children: ReactNode }) {
+function Tape() {
   return (
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}>
-      {children}
-    </svg>
+    <div
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "stretch",
+        borderBottom: `1px solid ${C.border}`,
+        background: C.panel2,
+        fontFamily: MONO,
+        fontSize: 11,
+      }}
+    >
+      {TAPE.map((t) => (
+        <div
+          key={t.label}
+          style={{
+            display: "flex",
+            alignItems: "baseline",
+            gap: 8,
+            height: 33,
+            padding: "0 16px",
+            borderRight: `1px solid ${C.border3}`,
+            whiteSpace: "nowrap",
+          }}
+        >
+          <span style={{ fontSize: 10, letterSpacing: "0.08em", color: C.t4 }}>{t.label}</span>
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 500,
+              color: t.tone === "pos" ? C.pos : t.tone === "neg" ? C.neg : C.text,
+            }}
+          >
+            {t.value}
+          </span>
+        </div>
+      ))}
+    </div>
   );
 }
 
-const NAV = [
-  {
-    href: "/",
-    label: "Overview",
-    icon: (
-      <Icon>
-        <rect x="3" y="3" width="7" height="9" />
-        <rect x="14" y="3" width="7" height="5" />
-        <rect x="14" y="12" width="7" height="9" />
-        <rect x="3" y="16" width="7" height="5" />
-      </Icon>
-    ),
-  },
-  {
-    href: "/signals",
-    label: "Signals",
-    icon: (
-      <Icon>
-        <line x1="4" y1="6" x2="20" y2="6" />
-        <line x1="4" y1="12" x2="14" y2="12" />
-        <line x1="4" y1="18" x2="18" y2="18" />
-      </Icon>
-    ),
-  },
-  {
-    href: "/positions",
-    label: "Positions",
-    icon: (
-      <Icon>
-        <path d="M3 3v18h18" />
-        <rect x="7" y="10" width="3" height="8" />
-        <rect x="12" y="6" width="3" height="12" />
-        <rect x="17" y="13" width="3" height="5" />
-      </Icon>
-    ),
-  },
-  {
-    href: "/model",
-    label: "Model",
-    icon: (
-      <Icon>
-        <circle cx="12" cy="12" r="3" />
-        <path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1" />
-      </Icon>
-    ),
-  },
-  {
-    href: "/monitoring",
-    label: "Monitoring",
-    icon: (
-      <Icon>
-        <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-      </Icon>
-    ),
-  },
-];
+export function Shell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [clock, setClock] = useState("—:—:— CT");
 
-const FOOTER: Record<string, { label: string; status: string }> = {
-  "/": { label: "ALPACA · PAPER", status: "Pipeline healthy" },
-  "/signals": { label: "ALPACA · PAPER", status: "Pipeline healthy" },
-  "/positions": { label: "ALPACA · PAPER", status: "100 / 100 filled" },
-  "/model": { label: "MLFLOW · run 8f21c", status: "Registered · Prod" },
-  "/monitoring": { label: "PREFECT · orchestrator", status: "All flows nominal" },
-};
-
-export function Shell({ children }: { children: ReactNode }) {
-  const path = usePathname();
-  const footer = FOOTER[path] ?? FOOTER["/"];
+  useEffect(() => {
+    const tick = () => setClock(nowClockCT());
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, []);
 
   return (
-    <div className="flex min-h-screen bg-bg text-text">
-      <aside className="flex w-[220px] shrink-0 flex-col border-r border-line bg-sidebar py-[22px]">
-        <div className="mb-[26px] flex items-center gap-2.5 px-[22px]">
-          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 3v18h18" />
-            <path d="M7 14l3-4 3 3 5-7" />
-          </svg>
-          <div>
-            <div className="text-[15px] font-semibold tracking-[0.2px]">Quantis</div>
-            <div className="font-mono text-[10px] tracking-widest text-dim">XS-EQUITY ML</div>
-          </div>
+    <div style={{ display: "flex", flexDirection: "column", minHeight: "100vh", background: C.bg, color: C.text }}>
+      <header
+        style={{
+          display: "flex",
+          alignItems: "stretch",
+          height: 46,
+          borderBottom: `1px solid ${C.border}`,
+          background: C.panel,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 18px", borderRight: `1px solid ${C.border}` }}>
+          <span style={{ display: "block", width: 14, height: 14, background: C.accent }} />
+          <span style={{ fontFamily: MONO, fontSize: 13, fontWeight: 600, letterSpacing: "0.14em" }}>QUANTIS</span>
+          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: C.t4 }}>XS-EQ ML</span>
         </div>
-        <nav className="flex flex-col gap-0.5 px-3">
+        <nav style={{ display: "flex", alignItems: "stretch" }}>
           {NAV.map((item) => {
-            const active = path === item.href;
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link
-                key={item.href}
+                key={item.key}
                 href={item.href}
-                className={cls(
-                  "flex items-center gap-3 rounded-lg px-3.5 py-2.5 text-sm",
-                  active ? "bg-nav font-medium text-teal" : "text-muted hover:text-text",
-                )}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 7,
+                  padding: "0 16px",
+                  borderRight: `1px solid ${C.border}`,
+                  fontSize: 13,
+                  color: active ? "#ffffff" : C.t3,
+                  background: active ? C.track : "transparent",
+                  boxShadow: active ? `inset 0 -2px 0 ${C.accent}` : "none",
+                }}
               >
-                {item.icon}
+                <span style={{ fontFamily: MONO, fontSize: 10, color: C.t4 }}>{item.hot}</span>
                 {item.label}
               </Link>
             );
           })}
         </nav>
-        <div className="mt-auto border-t border-line px-[22px] pt-4">
-          <div className="font-mono text-[11px] text-dim">{footer.label}</div>
-          <div className="mt-2 flex items-center gap-[7px] text-xs text-muted">
-            <span className="h-2 w-2 rounded-full bg-green shadow-[0_0_8px_#22c55e]" />
-            {footer.status}
-          </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 14,
+            marginLeft: "auto",
+            padding: "0 18px",
+            fontFamily: MONO,
+            fontSize: 11,
+            color: C.t3,
+          }}
+        >
+          <span style={{ display: "flex", alignItems: "center", gap: 7, border: `1px solid ${C.cap}`, padding: "4px 8px", color: C.t4 }}>
+            ⌘K <span style={{ color: C.cap }}>|</span> jump
+          </span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6, color: C.accent }}>ALPACA · PAPER</span>
+          <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: C.pos }} />
+            {clock}
+          </span>
         </div>
-      </aside>
-      <main className="flex min-w-0 flex-1 flex-col">{children}</main>
+      </header>
+
+      <Tape />
+
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          padding: "6px 18px",
+          borderBottom: `1px solid ${C.border}`,
+          background: C.warnBg,
+          fontFamily: MONO,
+          fontSize: 10,
+          letterSpacing: "0.1em",
+          color: C.accent,
+        }}
+      >
+        <span style={{ width: 5, height: 5, borderRadius: 99, background: C.accent, flexShrink: 0 }} />
+        <span style={{ textWrap: "pretty" }}>{PROVENANCE}</span>
+      </div>
+
+      <main style={{ flex: 1, minWidth: 0, padding: "16px 18px 28px" }}>{children}</main>
     </div>
   );
 }

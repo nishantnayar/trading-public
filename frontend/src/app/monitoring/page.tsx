@@ -1,94 +1,125 @@
-import { IcDecay } from "@/components/MockCharts";
-import { Chip, Topbar } from "@/components/Topbar";
-import { drift, flowRuns, pipeline } from "@/lib/demo";
+"use client";
+
+import { MetaRows, Panel, PanelHeader } from "@/components/ui";
+import { FEED_LABEL, type Coverage, type IngestRun } from "@/lib/api";
+import { FLOWS } from "@/lib/illustrative";
+import { useApi } from "@/lib/useApi";
+import { C, MONO, SANS } from "@/lib/palette";
+
+const TH: React.CSSProperties = { padding: "7px 10px", fontWeight: 400, color: C.t4 };
 
 export default function MonitoringPage() {
+  const cov = useApi<Coverage>("/coverage");
+  const runs = useApi<IngestRun[]>("/ingest-runs");
+  const hasRuns = (runs.data?.length ?? 0) > 0;
+
   return (
-    <>
-      <Topbar title="Pipeline & Model Monitoring" subtitle="Prefect deployments · data quality · drift & decay">
-        <Chip live>Uptime 99.4%</Chip>
-      </Topbar>
-      <div className="space-y-4 overflow-auto px-8 py-6">
-        <div className="grid grid-cols-4 gap-3.5">
-          {pipeline.map((item) => (
-            <div key={item.label} className="flex items-center gap-3 rounded-[10px] border border-line bg-panel p-[15px]">
-              <span className={`h-2.5 w-2.5 rounded-full ${item.ok ? "bg-green" : "bg-amber"}`} />
-              <div>
-                <div className="text-[13px] font-medium">{item.label}</div>
-                <div className="font-mono text-[11px] text-muted">{item.sub}</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* scheduled flows */}
+      <Panel>
+        <PanelHeader
+          label="SCHEDULED FLOWS"
+          right={
+            <>
+              <span style={{ fontFamily: MONO, fontSize: 11, color: C.t4 }}>Prefect · isolated profile :4201</span>
+              <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11, color: C.t4 }}>1 of 4 live</span>
+            </>
+          }
+        />
+        <table style={{ fontFamily: MONO, fontSize: 12 }}>
+          <thead>
+            <tr style={{ fontSize: 10, letterSpacing: "0.1em", borderBottom: `1px solid ${C.border}` }}>
+              <th style={{ ...TH, padding: "7px 10px 7px 14px", textAlign: "left" }}>FLOW</th>
+              <th style={{ ...TH, textAlign: "left" }}>STATE</th>
+              <th style={{ ...TH, textAlign: "left" }}>SCHEDULE</th>
+              <th style={{ ...TH, textAlign: "left" }}>LAST RUN</th>
+              <th style={{ ...TH, textAlign: "right" }}>ROWS</th>
+              <th style={{ ...TH, padding: "7px 14px 7px 10px", textAlign: "left" }}>PHASE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {FLOWS.map((f) => (
+              <tr key={f.label} style={{ borderTop: `1px solid ${C.border2}`, height: 34, fontFamily: MONO }}>
+                <td style={{ padding: "0 10px 0 14px", color: C.text }}>{f.label}</td>
+                <td style={{ padding: "0 10px" }}>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 7, fontSize: 11, color: f.ok ? C.pos : C.t3 }}>
+                    <span style={{ width: 6, height: 6, borderRadius: 99, background: f.ok ? C.pos : C.accent }} />
+                    {f.state}
+                  </span>
+                </td>
+                <td style={{ padding: "0 10px", color: C.t3 }}>{f.schedule}</td>
+                <td style={{ padding: "0 10px", color: C.t3 }}>{f.last}</td>
+                <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{f.rows}</td>
+                <td style={{ padding: "0 14px 0 10px", color: C.t4 }}>{f.phase}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </Panel>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1.6fr)", gap: 14, alignItems: "start" }}>
+        {/* bar coverage (real) */}
+        <Panel>
+          <PanelHeader label="BAR COVERAGE" />
+          <MetaRows
+            rows={
+              cov.data
+                ? [
+                    { label: "daily bars", value: cov.data.rows.toLocaleString() },
+                    { label: "symbols", value: String(cov.data.symbols) },
+                    { label: "start", value: cov.data.start ?? "—" },
+                    { label: "end", value: cov.data.end ?? "—" },
+                    { label: "feed", value: FEED_LABEL, tone: "accent" },
+                  ]
+                : [{ label: "loading", value: "…" }]
+            }
+          />
+          <div style={{ padding: "10px 14px", borderTop: `1px solid ${C.border}`, fontFamily: SANS, fontSize: 11, lineHeight: 1.5, color: C.t4 }}>
+            Free IEX feed reports IEX-only volume and history starts 2017-11; the starter universe is the current S&amp;P 500
+            (survivorship bias).
+          </div>
+        </Panel>
+
+        {/* ingest run audit (real) */}
+        <Panel>
+          <PanelHeader label="INGEST RUN AUDIT" right={<span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11, color: C.t4 }}>table: ingest_runs</span>} />
+          {hasRuns ? (
+            <table style={{ fontFamily: MONO, fontSize: 12 }}>
+              <thead>
+                <tr style={{ fontSize: 10, letterSpacing: "0.1em", borderBottom: `1px solid ${C.border}` }}>
+                  <th style={{ ...TH, padding: "7px 10px 7px 14px", textAlign: "left" }}>FLOW</th>
+                  <th style={{ ...TH, textAlign: "left" }}>STARTED</th>
+                  <th style={{ ...TH, textAlign: "right" }}>SYMBOLS</th>
+                  <th style={{ ...TH, textAlign: "right" }}>ROWS</th>
+                  <th style={{ ...TH, padding: "7px 14px 7px 10px", textAlign: "left" }}>STATUS</th>
+                </tr>
+              </thead>
+              <tbody>
+                {runs.data!.map((r, i) => (
+                  <tr key={i} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
+                    <td style={{ padding: "0 10px 0 14px", color: C.text }}>{r.flow}</td>
+                    <td style={{ padding: "0 10px", color: C.t3 }}>{r.started_at?.replace("T", " ").slice(0, 16) ?? "—"}</td>
+                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{r.symbols_processed ?? "—"}</td>
+                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{r.rows_written?.toLocaleString() ?? "—"}</td>
+                    <td style={{ padding: "0 14px 0 10px", color: r.status === "success" ? C.pos : C.accent }}>{r.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, padding: "32px 14px" }}>
+              <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.1em", color: C.accent }}>NO ROWS YET</div>
+              <div style={{ fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: C.t3, maxWidth: "46ch" }}>
+                The daily ingest flow does not write the audit table yet. Once it does, every run lands here with symbols
+                processed, rows written and failure detail.
+              </div>
+              <div style={{ border: `1px solid ${C.cap}`, padding: "5px 10px", fontFamily: MONO, fontSize: 11, color: C.t2 }}>
+                Blocked on Phase 8 · Prefect deployments
               </div>
             </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="rounded-xl border border-line bg-panel p-5">
-            <div className="flex items-center justify-between">
-              <div className="text-[15px] font-semibold">Live IC vs Backtest</div>
-              <span className="font-mono text-[11px] text-amber">▼ mild decay</span>
-            </div>
-            <IcDecay />
-            <div className="mt-1.5 flex gap-[18px]">
-              <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                <span className="h-[3px] w-3.5 rounded-sm bg-dim" />
-                Backtest OOF
-              </span>
-              <span className="flex items-center gap-1.5 text-[11px] text-muted">
-                <span className="h-[3px] w-3.5 rounded-sm bg-teal" />
-                Live realized
-              </span>
-            </div>
-          </div>
-          <div className="rounded-xl border border-line bg-panel p-5">
-            <div className="text-[15px] font-semibold">
-              Feature Drift <span className="text-[13px] font-normal text-dim">PSI vs train</span>
-            </div>
-            <div className="mt-5 flex flex-col gap-[13px]">
-              {drift.map((row) => (
-                <div key={row.name} className="flex items-center gap-3">
-                  <span className="w-[120px] font-mono text-xs">{row.name}</span>
-                  <div className="h-2.5 flex-1 overflow-hidden rounded-[5px] bg-bg">
-                    <div className={`h-full ${row.bar}`} style={{ width: row.width }} />
-                  </div>
-                  <span className={`w-10 text-right font-mono text-xs ${row.tone}`}>{row.psi}</span>
-                </div>
-              ))}
-            </div>
-            <p className="mt-4 border-t border-line pt-3 font-mono text-[11px] text-dim">
-              PSI &gt; 0.25 flags retrain review · news_sentiment breached
-            </p>
-          </div>
-        </div>
-        <div className="overflow-hidden rounded-xl border border-line bg-panel">
-          <div className="px-[18px] pt-4 pb-1.5 text-[15px] font-semibold">Recent Flow Runs</div>
-          <table className="w-full text-[12.5px]">
-            <thead className="text-left text-[11px] uppercase tracking-[0.6px] text-dim">
-              <tr>
-                {["Flow", "Trigger", "Started", "Duration", "Rows", "Status"].map((h) => (
-                  <th key={h} className={`px-3.5 pb-2.5 ${h === "Status" ? "text-right" : ""}`}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="font-mono">
-              {flowRuns.map((run) => (
-                <tr key={run.flow} className="border-t border-row">
-                  <td className="px-3.5 py-2.5">{run.flow}</td>
-                  <td className="px-3.5 py-2.5 text-muted">{run.trigger}</td>
-                  <td className="px-3.5 py-2.5 text-muted">{run.started}</td>
-                  <td className="px-3.5 py-2.5">{run.duration}</td>
-                  <td className="px-3.5 py-2.5">{run.rows}</td>
-                  <td className="px-3.5 py-2.5 text-right">
-                    <span className={run.status === "success" ? "text-green" : "text-amber"}>
-                      ● {run.status}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+          )}
+        </Panel>
       </div>
-    </>
+    </div>
   );
 }

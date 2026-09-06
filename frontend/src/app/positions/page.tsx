@@ -1,105 +1,137 @@
-import { Kpi } from "@/components/Kpi";
-import { Panel } from "@/components/Panel";
-import { Chip, Topbar } from "@/components/Topbar";
-import { holdings } from "@/lib/demo";
+import { MetaRows, Note, Panel, PanelHeader } from "@/components/ui";
+import { CONSTRAINTS, COST_META, HOLDINGS, REBALANCE } from "@/lib/illustrative";
+import { C, MONO } from "@/lib/palette";
+
+const TH: React.CSSProperties = { padding: "7px 10px", fontWeight: 400, color: C.t4 };
 
 export default function PositionsPage() {
+  const maxPnl = Math.max(...HOLDINGS.map((r) => Math.abs(r.pnl)));
+
   return (
-    <>
-      <Topbar title="Positions & Risk" subtitle="100 open · reconciled with Alpaca 15:43 ET">
-        <Chip ok>All constraints satisfied</Chip>
-      </Topbar>
-      <div className="space-y-4 overflow-auto px-8 py-6">
-        <div className="grid grid-cols-4 gap-3.5">
-          <Kpi compact label="Portfolio vol" value="9.6%" suffix="/ 10% tgt" />
-          <Kpi compact label="Beta to SPY" value="0.11" />
-          <Kpi compact label="Max name wt" value="2.4%" suffix="/ 3% cap" />
-          <Kpi compact label="Max sector" value="18%" suffix="/ 25% cap" />
-        </div>
-        <div className="grid grid-cols-[1.7fr_1fr] gap-4">
-          <div className="overflow-hidden rounded-xl border border-line bg-panel">
-            <div className="flex items-center justify-between px-[18px] pt-4 pb-1.5 text-[15px] font-semibold">
-              Open Holdings
-              <span className="font-mono text-[11px] font-normal text-dim">showing 8 of 100</span>
-            </div>
-            <table className="w-full text-[12.5px]">
-              <thead className="text-left text-[11px] uppercase tracking-[0.6px] text-dim">
-                <tr>
-                  {["Side", "Ticker", "Qty", "Mkt val", "Wt", "uPnL"].map((h) => (
-                    <th key={h} className={`px-3.5 pb-2.5 ${h === "Side" || h === "Ticker" ? "" : "text-right"}`}>
-                      {h}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className="font-mono">
-                {holdings.map((row) => (
-                  <tr key={row.ticker} className="border-t border-row">
-                    <td className="px-3.5 py-2.5">
-                      <span
-                        className={
-                          row.side === "L"
-                            ? "rounded bg-long-bg px-1.5 py-0.5 text-[10px] text-green"
-                            : "rounded bg-short-bg px-1.5 py-0.5 text-[10px] text-red"
-                        }
-                      >
-                        {row.side}
-                      </span>
-                    </td>
-                    <td className="px-3.5 py-2.5">{row.ticker}</td>
-                    <td className="px-3.5 py-2.5 text-right">{row.qty}</td>
-                    <td className="px-3.5 py-2.5 text-right">{row.mkt}</td>
-                    <td className="px-3.5 py-2.5 text-right">{row.wt}</td>
-                    <td className={`px-3.5 py-2.5 text-right ${row.up ? "text-green" : "text-red"}`}>{row.upnl}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <Panel title="Next Rebalance" hint="Mon 09:35">
-            <div className="mt-1 grid grid-cols-3 gap-2.5">
-              <div className="rounded-lg border border-line bg-bg py-3 text-center">
-                <div className="font-mono text-xl font-semibold text-green">12</div>
-                <div className="mt-[3px] text-[11px] text-muted">buys</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* constraints */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,minmax(0,1fr))", border: `1px solid ${C.border}`, background: C.panel }}>
+        {CONSTRAINTS.map((c, i) => {
+          const near = c.used > 90;
+          return (
+            <div key={c.label} style={{ padding: 14, borderRight: i < 3 ? `1px solid ${C.border}` : undefined }}>
+              <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+                <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.1em", color: C.t3 }}>{c.label}</span>
+                <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.1em", color: near ? C.accent : C.pos }}>
+                  {near ? "NEAR CAP" : "OK"}
+                </span>
               </div>
-              <div className="rounded-lg border border-line bg-bg py-3 text-center">
-                <div className="font-mono text-xl font-semibold text-red">11</div>
-                <div className="mt-[3px] text-[11px] text-muted">sells</div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 8, fontFamily: MONO }}>
+                <span style={{ fontSize: 24, fontWeight: 600, lineHeight: 1 }}>{c.value}</span>
+                <span style={{ fontSize: 11, color: C.t4 }}>{c.limit}</span>
               </div>
-              <div className="rounded-lg border border-line bg-bg py-3 text-center">
-                <div className="font-mono text-xl font-semibold">23%</div>
-                <div className="mt-[3px] text-[11px] text-muted">turnover</div>
+              <div style={{ position: "relative", height: 4, marginTop: 10, background: C.track }}>
+                <div style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: `${c.used}%`, background: near ? C.accent : C.pos, opacity: 0.8 }} />
+                <div style={{ position: "absolute", right: 0, top: -2, bottom: -2, width: 1, background: C.cap }} />
               </div>
             </div>
-            <div className="my-[18px] h-px bg-line" />
-            <div className="mb-3 text-[13px] text-muted">Est. transaction cost</div>
-            <div className="font-mono text-[22px] font-semibold">
-              $310 <span className="text-xs text-dim">· 2.4 bps</span>
-            </div>
-            <div className="mt-4 space-y-[9px] font-mono text-xs">
-              <div className="flex justify-between">
-                <span className="text-muted">commission</span>
-                <span>$0 (Alpaca)</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">est. slippage</span>
-                <span>1.9 bps</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted">spread cost</span>
-                <span>0.5 bps</span>
-              </div>
-            </div>
-            <p className="mt-[18px] flex items-center gap-2.5 rounded-lg border border-[#1b3b38] bg-nav px-3.5 py-[11px] text-xs text-teal">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" strokeWidth="2">
-                <path d="M12 2v6M12 22v-6" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              Orders staged — paper, not yet sent
-            </p>
-          </Panel>
-        </div>
+          );
+        })}
       </div>
-    </>
+
+      <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.6fr) minmax(250px,1fr)", gap: 14, alignItems: "start" }}>
+        {/* holdings */}
+        <Panel>
+          <PanelHeader
+            label="OPEN HOLDINGS"
+            right={
+              <>
+                <span style={{ fontFamily: MONO, fontSize: 11, color: C.t4 }}>8 of 100 · gross $1.28M</span>
+                <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 10, color: C.t4 }}>SORT ↓ MKT VAL</span>
+              </>
+            }
+          />
+          <table style={{ fontFamily: MONO, fontSize: 12 }}>
+            <thead>
+              <tr style={{ fontSize: 10, letterSpacing: "0.1em", borderBottom: `1px solid ${C.border}` }}>
+                <th style={{ ...TH, padding: "7px 8px 7px 14px", textAlign: "left" }}>S</th>
+                <th style={{ ...TH, textAlign: "left" }}>TICKER</th>
+                <th style={{ ...TH, textAlign: "right" }}>QTY</th>
+                <th style={{ ...TH, textAlign: "right" }}>MKT VAL</th>
+                <th style={{ ...TH, textAlign: "right" }}>WT</th>
+                <th style={{ ...TH, textAlign: "right" }}>uPnL</th>
+                <th style={{ ...TH, padding: "7px 14px 7px 10px", textAlign: "center" }}>Δ</th>
+              </tr>
+            </thead>
+            <tbody>
+              {HOLDINGS.map((r) => {
+                const up = r.pnl >= 0;
+                return (
+                  <tr key={r.ticker} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
+                    <td style={{ padding: "0 8px 0 14px" }}>
+                      <span style={{ fontFamily: MONO, fontSize: 10, color: r.side === "L" ? C.pos : C.neg }}>{r.side}</span>
+                    </td>
+                    <td style={{ padding: "0 10px" }}>{r.ticker}</td>
+                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t3 }}>{r.qty}</td>
+                    <td style={{ padding: "0 10px", textAlign: "right" }}>{r.mkt}</td>
+                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t3 }}>{r.wt}</td>
+                    <td style={{ padding: "0 10px", textAlign: "right", fontWeight: 500, color: up ? C.pos : C.neg }}>{r.upnl}</td>
+                    <td style={{ padding: "0 14px 0 10px", width: 90 }}>
+                      <div style={{ position: "relative", height: 8, background: C.track }}>
+                        <div style={{ position: "absolute", left: "50%", top: -2, bottom: -2, width: 1, background: C.cap }} />
+                        <div
+                          style={{
+                            position: "absolute",
+                            top: 0,
+                            bottom: 0,
+                            [up ? "left" : "right"]: "50%",
+                            width: `${((Math.abs(r.pnl) / maxPnl) * 50).toFixed(1)}%`,
+                            background: up ? C.pos : C.neg,
+                            opacity: 0.7,
+                          }}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <Note>ILLUSTRATIVE — live holdings arrive with Phase 7 paper execution</Note>
+        </Panel>
+
+        {/* next rebalance */}
+        <Panel>
+          <PanelHeader
+            label="NEXT REBALANCE"
+            right={<span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 11, color: C.accent }}>MON 09:35</span>}
+          />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>
+            {REBALANCE.map((r, i) => (
+              <div key={r.label} style={{ padding: "14px 8px", textAlign: "center", borderRight: i < 2 ? `1px solid ${C.border}` : undefined }}>
+                <div style={{ fontFamily: MONO, fontSize: 22, fontWeight: 600, lineHeight: 1, color: r.tone === "pos" ? C.pos : r.tone === "neg" ? C.neg : C.text }}>
+                  {r.value}
+                </div>
+                <div style={{ marginTop: 4, fontFamily: MONO, fontSize: 10, letterSpacing: "0.08em", color: C.t4 }}>{r.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ borderTop: `1px solid ${C.border}` }}>
+            <MetaRows rows={COST_META.map((c) => ({ ...c }))} />
+          </div>
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              padding: "10px 14px",
+              borderTop: `1px solid ${C.border}`,
+              background: C.warnBg,
+              fontFamily: MONO,
+              fontSize: 11,
+              color: C.accent,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: 99, background: C.accent }} />
+            23 ORDERS STAGED · NOT SENT
+          </div>
+        </Panel>
+      </div>
+    </div>
   );
 }

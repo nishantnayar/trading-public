@@ -1,131 +1,141 @@
 "use client";
 
-import { useMemo } from "react";
+import { useState } from "react";
 
-import { EquityCurve } from "@/components/MockCharts";
-import { Kpi } from "@/components/Kpi";
-import { Panel } from "@/components/Panel";
-import { Chip, Topbar } from "@/components/Topbar";
-import type { Coverage } from "@/lib/api";
-import { contributors, exposure, sectorTilts } from "@/lib/demo";
-import { fmtInt, nowClockCT } from "@/lib/format";
+import { PriceChart } from "@/components/PriceChart";
+import { MetaRows, Panel, PanelHeader } from "@/components/ui";
+import { FEED_LABEL, type Bar, type Coverage, type SectorCount } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
+import { C, MONO } from "@/lib/palette";
+
+const RANGES: Record<string, number> = { "1M": 31, "6M": 186, "1Y": 366, "3Y": 1097 };
+const SYMBOL = "AAPL";
+
+function fmtVol(v: number): string {
+  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
+  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
+  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
+  return String(v);
+}
+
+function isoDaysAgo(days: number): string {
+  return new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
+}
+
+function spanText(cov: Coverage): string {
+  if (!cov.start || !cov.end) return "—";
+  const yrs = (new Date(cov.end).getTime() - new Date(cov.start).getTime()) / (365.25 * 864e5);
+  return `${yrs.toFixed(1)}y`;
+}
 
 export default function OverviewPage() {
-  const { data: cov, error } = useApi<Coverage>("/coverage");
-  const clock = useMemo(() => nowClockCT(), []);
-  const names = cov?.symbols ? fmtInt(cov.symbols) : "503";
+  const [range, setRange] = useState("3Y");
+  const cov = useApi<Coverage>("/coverage");
+  const sectors = useApi<SectorCount[]>("/sectors");
+  const bars = useApi<Bar[]>(`/bars/${SYMBOL}?start=${isoDaysAgo(RANGES[range])}`);
+
+  const list = bars.data ?? [];
+  const last = list.at(-1);
+  const first = list[0];
+  const prev = list.at(-2) ?? last;
+  const changePeriod = last && first ? (last.close / first.close - 1) * 100 : 0;
+  const change1d = last && prev ? (last.close / prev.close - 1) * 100 : 0;
+  const points = list.map((b) => ({ date: b.date, close: b.close }));
+
+  const total = (sectors.data ?? []).reduce((a, r) => a + r.count, 0) || 1;
+  const maxSector = Math.max(1, ...(sectors.data ?? []).map((r) => r.count));
 
   return (
-    <>
-      <Topbar title="Portfolio Overview" subtitle="Last rebalance 2026-09-01 · Next 2026-09-08 · Weekly">
-        <Chip>S&P 500 universe · {names} names</Chip>
-        <Chip live>LIVE {clock}</Chip>
-      </Topbar>
-      <div className="space-y-4 overflow-auto px-8 py-6">
-        {error ? <p className="text-sm text-red">API offline — start the stack with scripts/start.ps1</p> : null}
-        <div className="grid grid-cols-4 gap-4">
-          <Kpi label="Net Liq. Value" value="$1,284,930" sub="+$4,210 today · +0.33%" subTone="green" />
-          <Kpi label="Sharpe (1Y)" value="1.87" sub="Sortino 2.64" subTone="green" />
-          <Kpi label="Max Drawdown" value="-8.4%" tone="red" sub="Recovered 41d" />
-          <Kpi label="Rank IC (20d)" value="0.061" tone="teal" sub="t-stat 3.2" subTone="green" />
-        </div>
-        <div className="grid grid-cols-3 gap-4">
-          <div className="col-span-2">
-            <Panel
-              title="Equity Curve"
-              hint="net of costs"
-              right={
-                <div className="flex gap-4 text-xs text-muted">
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-[3px] w-3.5 rounded-sm bg-teal" />
-                    Strategy
-                  </span>
-                  <span className="flex items-center gap-1.5">
-                    <span className="h-[3px] w-3.5 rounded-sm bg-dim" />
-                    SPY
-                  </span>
-                </div>
-              }
-            >
-              <EquityCurve />
-            </Panel>
+    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.4fr) minmax(260px,1fr)", gap: 14, alignItems: "start" }}>
+      {/* PRICE */}
+      <Panel>
+        <div style={{ display: "flex", alignItems: "center", gap: 16, height: 36, padding: "0 14px", borderBottom: `1px solid ${C.border}` }}>
+          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: C.t3 }}>PRICE · {SYMBOL}</span>
+          <span style={{ fontFamily: MONO, fontSize: 11, color: C.t4 }}>adjusted · IEX · {range}</span>
+          <div style={{ display: "flex", marginLeft: "auto", border: `1px solid ${C.border}` }}>
+            {Object.keys(RANGES).map((r) => (
+              <button
+                key={r}
+                onClick={() => setRange(r)}
+                style={{
+                  padding: "4px 9px",
+                  fontFamily: MONO,
+                  fontSize: 10,
+                  cursor: "pointer",
+                  border: "none",
+                  borderRight: `1px solid ${C.border}`,
+                  background: r === range ? C.track : "transparent",
+                  color: r === range ? C.accent : C.t4,
+                }}
+              >
+                {r}
+              </button>
+            ))}
           </div>
-          <Panel title="Exposure">
-            <div className="mt-1">
-              <div className="mb-1.5 flex justify-between text-[13px]">
-                <span className="text-muted">Gross</span>
-                <span className="font-mono">148%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded bg-bg">
-                <div className="h-full w-[74%] bg-teal" />
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="mb-1.5 flex justify-between text-[13px]">
-                <span className="text-muted">Net</span>
-                <span className="font-mono">+12%</span>
-              </div>
-              <div className="h-2 overflow-hidden rounded bg-bg">
-                <div className="h-full w-[56%] bg-violet" />
-              </div>
-            </div>
-            <div className="my-5 h-px bg-line" />
-            <div className="space-y-3 text-[13px]">
-              {exposure.map((row) => (
-                <div key={row.label} className="flex justify-between">
-                  <span className="text-muted">{row.label}</span>
-                  <span className={`font-mono ${row.tone}`}>{row.value}</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
         </div>
-        <div className="grid grid-cols-2 gap-4">
-          <Panel title="Net Sector Tilt">
-            <div className="flex flex-col gap-[11px]">
-              {sectorTilts.map((row) => (
-                <div key={row.name} className="flex items-center gap-3">
-                  <span className="w-[78px] text-xs text-muted">{row.name}</span>
-                  <div className="flex flex-1 justify-center">
-                    <div className={`flex w-1/2 ${row.pos ? "justify-start" : "justify-end"}`}>
-                      <div
-                        className={`h-3.5 rounded-sm ${row.pos ? "bg-green" : "bg-red"}`}
-                        style={{ width: row.width }}
-                      />
+
+        <div style={{ display: "flex", alignItems: "baseline", gap: 18, padding: "12px 14px 0", fontFamily: MONO, flexWrap: "wrap" }}>
+          <span style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.01em" }}>{last ? last.close.toFixed(2) : "—"}</span>
+          <span style={{ fontSize: 13, color: changePeriod >= 0 ? C.pos : C.neg }}>
+            {last ? `${changePeriod >= 0 ? "+" : ""}${changePeriod.toFixed(1)}%` : "—"} <span style={{ color: C.t4 }}>{range}</span>
+          </span>
+          <span style={{ fontSize: 13, color: change1d >= 0 ? C.pos : C.neg }}>
+            {last ? `${change1d >= 0 ? "+" : ""}${change1d.toFixed(2)}%` : "—"} <span style={{ color: C.t4 }}>1D</span>
+          </span>
+          <span style={{ marginLeft: "auto", fontSize: 11, color: C.t4 }}>
+            {last ? `O ${last.open.toFixed(2)} · H ${last.high.toFixed(2)} · L ${last.low.toFixed(2)} · V ${fmtVol(last.volume)}` : ""}
+          </span>
+        </div>
+
+        {bars.error ? (
+          <div style={{ padding: 24, fontFamily: MONO, fontSize: 12, color: C.neg }}>API error: {bars.error} — is the backend on :8000?</div>
+        ) : (
+          <PriceChart points={points} />
+        )}
+      </Panel>
+
+      {/* RIGHT COLUMN */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <Panel>
+          <PanelHeader label="DATA COVERAGE" />
+          <MetaRows
+            rows={
+              cov.data
+                ? [
+                    { label: "daily bars", value: cov.data.rows.toLocaleString() },
+                    { label: "symbols", value: String(cov.data.symbols) },
+                    { label: "range", value: `${cov.data.start} → ${cov.data.end}` },
+                    { label: "span", value: spanText(cov.data) },
+                    { label: "feed", value: FEED_LABEL, tone: "accent" },
+                  ]
+                : [{ label: "loading", value: "…" }]
+            }
+          />
+        </Panel>
+
+        <Panel>
+          <PanelHeader
+            label="UNIVERSE BY SECTOR"
+            right={<span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 10, color: C.t4 }}>{cov.data ? `${cov.data.symbols} NAMES` : ""}</span>}
+          />
+          <table style={{ fontFamily: MONO, fontSize: 11 }}>
+            <tbody>
+              {(sectors.data ?? []).map((row) => (
+                <tr key={row.sector} style={{ borderTop: `1px solid ${C.border2}` }}>
+                  <td style={{ padding: "6px 0 6px 14px", color: C.t2, whiteSpace: "nowrap" }}>{row.sector}</td>
+                  <td style={{ padding: "6px 8px", width: "38%" }}>
+                    <div style={{ height: 6, background: C.track }}>
+                      <div style={{ height: "100%", background: C.accent, opacity: 0.85, width: `${((row.count / maxSector) * 100).toFixed(0)}%` }} />
                     </div>
-                  </div>
-                  <span className={`w-[42px] text-right font-mono text-xs ${row.pos ? "text-green" : "text-red"}`}>
-                    {row.value}
-                  </span>
-                </div>
+                  </td>
+                  <td style={{ padding: "6px 6px", textAlign: "right", color: C.text }}>{row.count}</td>
+                  <td style={{ padding: "6px 14px 6px 0", textAlign: "right", color: C.t4 }}>{((row.count / total) * 100).toFixed(1)}%</td>
+                </tr>
               ))}
-            </div>
-          </Panel>
-          <Panel title="Top Contributors · Today">
-            <div className="flex flex-col">
-              {contributors.map((row, i) => (
-                <div
-                  key={row.ticker}
-                  className={`flex items-center justify-between py-2 ${i < contributors.length - 1 ? "border-b border-row" : ""}`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span
-                      className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
-                        row.side === "LONG" ? "bg-long-bg text-green" : "bg-short-bg text-red"
-                      }`}
-                    >
-                      {row.side}
-                    </span>
-                    <span className="font-mono text-[13px]">{row.ticker}</span>
-                  </div>
-                  <span className={`font-mono text-[13px] ${row.up ? "text-green" : "text-red"}`}>{row.pnl}</span>
-                </div>
-              ))}
-            </div>
-          </Panel>
-        </div>
+            </tbody>
+          </table>
+        </Panel>
       </div>
-    </>
+    </div>
   );
 }

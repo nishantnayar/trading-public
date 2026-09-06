@@ -27,6 +27,6 @@ def test_ingest_run_round_trip(require_postgres: None) -> None:
 
 def test_api_portfolio_endpoints_respond(require_postgres: None) -> None:
     Base.metadata.create_all(get_engine())
-    for path in ("/signals", "/signals/quintiles", "/positions", "/model"):
+    for path in ("/signals", "/signals/quintiles", "/positions", "/model", "/broker"):
         response = client.get(path)
         assert response.status_code == 200, path

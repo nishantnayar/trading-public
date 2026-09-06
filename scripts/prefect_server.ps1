@@ -11,6 +11,10 @@ $env:PREFECT_HOME = Join-Path $root ".prefect"
 $env:PREFECT_SERVER_API_HOST = "127.0.0.1"
 $env:PREFECT_SERVER_API_PORT = "4201"
 $env:PREFECT_API_URL = "http://127.0.0.1:4201/api"
+# SQLite cannot take the notification loop plus deployment writes at once.
+$env:PREFECT_API_SERVICES_FLOW_RUN_NOTIFICATIONS_ENABLED = "false"
+$env:PREFECT_API_DATABASE_CONNECTION_TIMEOUT = "60"
+$env:PREFECT_API_DATABASE_TIMEOUT = "60"
 
 New-Item -ItemType Directory -Force -Path $env:PREFECT_HOME | Out-Null
 

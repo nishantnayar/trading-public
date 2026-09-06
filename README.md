@@ -40,7 +40,8 @@ prices, and pipeline status.
 | **Features** | 11 point-in-time price features (~755k rows) with leakage tests |
 | **Model** | LightGBM + purged walk-forward CV, MLflow tracking, SHAP |
 | **Backtest** | Dollar-neutral quintile L/S, cost sweep, Phase 6 construction levers |
-| **Ingest** | Prefect `ingest-daily-bars` under an isolated local profile (`:4201`) |
+| **Paper broker** | Simulated ledger (default) + Alpaca paper adapter; no live orders |
+| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday ingest, Sat research, Mon rebalance) |
 | **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Model, Monitoring |
 
 **Result so far — a real signal that costs eat.** Out-of-fold rank IC **0.018**; the
@@ -51,8 +52,8 @@ no-trade buffer plus a 10-session hold cuts that to **13.4x** and lifts break-ev
 **25.4 bps**; sector-neutralising the 5.3% IT tilt **destroys** the edge. Full
 accounting: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md#backtest-phase-5).
 
-Fundamentals exist as a **5-symbol yfinance pilot**. Signals, Positions, and Model
-screens in the UI are labeled placeholders until scores and positions are wired up.
+Fundamentals exist as a **5-symbol yfinance pilot**. Positions in the UI are **target
+weights**; paper qty/cash is `GET /broker` after a simulated rebalance.
 
 Verified counts, tests, and design intent: [`docs/PROGRESS.md`](docs/PROGRESS.md),
 [`docs/PLAN.md`](docs/PLAN.md).
@@ -69,9 +70,12 @@ flowchart LR
     C --> D[LightGBM<br/>purged walk-forward]
     D --> BT[Backtest<br/>quintile L/S · cost sweep]
     D -.-> M[MLflow]
+    BT --> PB[Paper broker<br/>simulated / Alpaca paper]
     P[Prefect ingest] -.-> A
+    Svc[Prefect schedules] -.-> P
     B --> API[FastAPI]
-    API --> S[Next.js<br/>Overview · Monitoring]
+    API --> S[Next.js<br/>5 screens]
+    PB -.-> API
 ```
 
 ---
@@ -120,13 +124,17 @@ uv run python -m quantis.backtest.run
 uv run python -m quantis.backtest.compare   # Phase 6 levers at 10 bps
 uv run python -m quantis.backtest.publish   # scores + weights into Postgres for the UI
 
-# 5. Local stack: FastAPI :8000, Next.js :3000, Prefect :4201
+# 4f. Paper rebalance (simulated ledger; never live)
+uv run python -m quantis.execution.broker
+
+# 5. Local stack: FastAPI :8000, Next.js :3000, Prefect :4201 + cron deployments
 uv run python scripts/start.py
 ```
 
-One terminal, interleaved `[api]` / `[ui]` / `[prefect]` logs, Ctrl+C stops everything.
-Use `--only api ui` or `--skip prefect` for a subset. Postgres should already be running
-as a system service.
+One terminal, interleaved `[api]` / `[ui]` / `[prefect]` / `[schedules]` logs, Ctrl+C
+stops everything. Use `--only api ui` or `--skip prefect` for a subset. `--skip schedules`
+keeps the Prefect UI without registering cron. Postgres should already be running as a
+system service.
 
 Optional RL extra (not used by the current pipeline): `uv sync --group rl`.
 Frontend deps: `cd frontend && npm install` (first time only; the launcher warns if
@@ -164,17 +172,18 @@ CI also runs `npm run lint` in `frontend/`. The RL extra (`torch`) is not instal
 uv run python scripts/start.py
 # API      http://127.0.0.1:8000/docs
 # UI       http://localhost:3000
-# Prefect  http://127.0.0.1:4201
+# Prefect  http://127.0.0.1:4201   (deployments register with the stack)
 ```
 
 | Screen | Source |
 |---|---|
 | Overview `/` | Live — coverage, universe, sector mix, price chart |
-| Monitoring `/monitoring` | Live — bar coverage |
-| Signals / Positions / Model | Placeholders (labeled in the UI) |
+| Monitoring `/monitoring` | Live — bar coverage, ingest-run audit |
+| Signals `/signals` | Live — published OOF scores |
+| Positions `/positions` | Live — target weights (`buffer=1`, 10-session hold) |
+| Model `/model` | Live — IC, SHAP, cost-aware book metrics |
 
-See [`frontend/README.md`](frontend/README.md). A Streamlit data smoke test still runs
-via `./scripts/dashboard.ps1` on `:8502`.
+Paper fills: `GET /broker` (simulated ledger). See [`frontend/README.md`](frontend/README.md).
 
 ---
 
@@ -188,7 +197,8 @@ src/quantis/
 ├── features/          # point-in-time feature store
 ├── models/            # labels, purged CV, LightGBM training, registry
 ├── backtest/          # weight construction, cost-aware P&L engine
-├── orchestration/     # Prefect ingest flow
+├── execution/         # simulated ledger + Alpaca paper (no live path)
+├── orchestration/     # Prefect ingest + cron runner (with start.py)
 └── api/               # FastAPI backend
 frontend/              # Next.js dashboard
 scripts/               # start.py, env_check, init_db, ingest_fundamentals

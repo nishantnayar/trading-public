@@ -29,8 +29,12 @@ class Settings(BaseSettings):
     alpaca_secret_key: str = Field(default="")
     alpaca_paper: bool = Field(default=True)
 
+    # Execution: "simulated" never leaves this machine; "alpaca-paper" submits
+    # to Alpaca's paper endpoint only. There is no live-trading value on purpose.
+    quantis_broker: str = Field(default="simulated")
+
     # Prefect (distinct port/pool so it never collides with other local projects)
-    prefect_api_url: str = Field(default="http://localhost:4202/api")
+    prefect_api_url: str = Field(default="http://127.0.0.1:4201/api")
     prefect_work_pool: str = Field(default="quantis-ingestion")
 
     # FastAPI (Next.js on :3000 consumes this)

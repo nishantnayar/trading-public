@@ -262,9 +262,12 @@ a flat rate. It **excludes**:
 - **No Alembic migrations** — schema is created with `Base.metadata.create_all()` via
   `scripts/init_db.py`. Alembic is a declared dependency but unconfigured; fine while
   tables are additive, needs doing before any destructive column change.
-- **`ingest_runs` is written** by `ingest-daily-bars` and `publish-scores`. Older docs
-  said it was empty by design; that is no longer true. Scheduled Prefect deployments
-  (daily/weekly) are still Phase 8.
+- **`ingest_runs` is written** by `ingest-daily-bars`, `publish-scores`, and
+  `weekly-rebalance`. `scripts/start.py` starts the Prefect server and the cron runner
+  together. `--skip schedules` disables cron (weekday ingest, Saturday research, Monday
+  simulated rebalance). Rebalance still defaults to the in-process ledger.
+- **Prefect 2.20 cannot run on AnyIO 4.14+.** `GatherTaskGroup` is missing `create_task`,
+  so a finished ingest was marked Crashed. The env is pinned to `anyio>=4.4,<4.14`.
 - **No `YFinancePrices` fallback** — `PriceSource` is a protocol with only
   `AlpacaDailyBars` implementing it, despite the plan naming a fallback.
 
@@ -274,6 +277,18 @@ a flat rate. It **excludes**:
   value/quality features until a fundamentals source with multi-year history is chosen.
 - **Dollar volume is IEX-only.** `dollar_vol_20d` is usable for cross-sectional ranking,
   not for absolute liquidity screens. See Price data above.
+
+## Paper execution
+
+- **No live trading.** `AlpacaPaperClient` refuses to construct unless `ALPACA_PAPER` is
+  true, and the SDK client is always `paper=True`. There is no live endpoint in this
+  repo.
+- **Simulated is the default.** `QUANTIS_BROKER=simulated` so scheduled rebalance cannot
+  submit Alpaca paper orders unless you change it on purpose.
+- **Simulated fills at the mark**, normally yesterday's close — not a bid/ask, not
+  latency, not a locate. Short qty is just negative inventory.
+- **Alpaca paper fills are not written** to `broker_fills`; only the simulated ledger
+  persists. `GET /broker` reads that ledger.
 
 ## Dashboard
 
@@ -285,7 +300,8 @@ a flat rate. It **excludes**:
   currently a local install with no managed instance), and the deployed origin added to
   `api_cors_origins`. Vercel can host the frontend, but not the data layer behind it.
 - **Positions are target weights, not fills.** The Positions screen shows the published
-  working book (`buffer=1`, 10-session hold). There is no SimulatedBroker / Alpaca paper
-  adapter yet, so there is no quantity, market value, or uPnL — those would be fiction.
-  Restart the UI after `publish` so Next picks up API changes; uvicorn `--reload-dir src`
-  covers the backend.
+  working book (`buffer=1`, 10-session hold). Paper quantities and cash live on
+  `GET /broker` after `python -m quantis.execution.broker` (simulated by default).
+  Simulated fills are at the supplied close, not an exchange match; Alpaca paper fills
+  are not persisted into `broker_fills`. Restart the UI after `publish` so Next picks up
+  API changes; uvicorn `--reload-dir src` covers the backend.

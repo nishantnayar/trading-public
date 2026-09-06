@@ -2,9 +2,10 @@
 prefixed logs.
 
 Services:
-    api      FastAPI      http://127.0.0.1:8000/docs
-    ui       Next.js      http://localhost:3000
-    prefect  Prefect      http://127.0.0.1:4201   (isolated PREFECT_HOME)
+    api          FastAPI      http://127.0.0.1:8000/docs
+    ui           Next.js      http://localhost:3000
+    prefect      Prefect API  http://127.0.0.1:4201   (isolated PREFECT_HOME)
+    schedules    process worker on pool quantis-ingestion (starts with prefect)
 
 Ctrl+C stops everything. Postgres is expected to be running as a
 system service.
@@ -12,6 +13,7 @@ system service.
 Run:  uv run python scripts/start.py
       uv run python scripts/start.py --only api ui
       uv run python scripts/start.py --skip prefect
+      uv run python scripts/start.py --skip schedules
 """
 
 from __future__ import annotations
@@ -91,14 +93,39 @@ class Service:
     name: str
     command: list[str]
     color: str
-    port: int
+    port: int | None = None
     cwd: Path = REPO
     env: dict[str, str] = field(default_factory=dict)
     url: str = ""
 
 
+def prefect_env(prefect_home: Path) -> dict[str, str]:
+    """Env for the Prefect server and the worker that talks to it.
+
+    Local Prefect uses SQLite. Concurrent writers (server background
+    loops + applying deployments) raise `database is locked`. We do not
+    use flow-run notification hooks, so that loop is off. Timeouts give
+    SQLite time to wait instead of failing the statement.
+    """
+    return {
+        "PREFECT_HOME": str(prefect_home),
+        "PREFECT_SERVER_API_HOST": "127.0.0.1",
+        "PREFECT_SERVER_API_PORT": str(PREFECT_PORT),
+        "PREFECT_API_URL": f"http://127.0.0.1:{PREFECT_PORT}/api",
+        "PREFECT_API_SERVICES_FLOW_RUN_NOTIFICATIONS_ENABLED": "false",
+        "PREFECT_API_DATABASE_CONNECTION_TIMEOUT": "60",
+        "PREFECT_API_DATABASE_TIMEOUT": "60",
+        # Process worker always starts via `python -m prefect.engine`, which
+        # emits a runpy warning and a Prefect 2 deprecation on every flow run.
+        "PYTHONWARNINGS": (
+            "ignore::RuntimeWarning:runpy," "ignore::DeprecationWarning:prefect.engine"
+        ),
+    }
+
+
 def services() -> list[Service]:
     prefect_home = REPO / ".prefect"
+    prefect = prefect_env(prefect_home)
     return [
         Service(
             name="api",
@@ -154,13 +181,16 @@ def services() -> list[Service]:
             command=["uv", "run", "prefect", "server", "start"],
             color=paint("\033[33m"),  # yellow
             port=PREFECT_PORT,
-            env={
-                "PREFECT_HOME": str(prefect_home),
-                "PREFECT_SERVER_API_HOST": "127.0.0.1",
-                "PREFECT_SERVER_API_PORT": str(PREFECT_PORT),
-                "PREFECT_API_URL": f"http://127.0.0.1:{PREFECT_PORT}/api",
-            },
+            env=prefect,
             url=f"http://127.0.0.1:{PREFECT_PORT}",
+        ),
+        Service(
+            name="schedules",
+            command=["uv", "run", "python", "-m", "quantis.orchestration.serve"],
+            color=paint("\033[32m"),  # green
+            port=None,
+            env=prefect,
+            url="pool quantis-ingestion: ingest / research / rebalance",
         ),
     ]
 
@@ -196,6 +226,8 @@ def preflight(selected: list[Service]) -> tuple[list[str], list[str]]:
     # A stale listener yields an opaque "WinError 10013" /
     # "EADDRINUSE", so name it here.
     for service in selected:
+        if not service.port:
+            continue
         with socket.socket() as probe:
             probe.settimeout(0.4)
             if probe.connect_ex(("127.0.0.1", service.port)) != 0:
@@ -214,6 +246,11 @@ def preflight(selected: list[Service]) -> tuple[list[str], list[str]]:
 
     if "prefect" in names:
         (REPO / ".prefect").mkdir(exist_ok=True)
+
+    if "schedules" in names and "prefect" not in names:
+        problems.append(
+            "schedules needs Prefect on :4201 - start prefect first, or omit --skip prefect"
+        )
 
     if "api" in names:
         try:
@@ -278,6 +315,26 @@ def stop(process: subprocess.Popen) -> None:
         process.kill()
 
 
+def choose_services(
+    only: list[str] | None = None,
+    skip: list[str] | None = None,
+) -> list[Service]:
+    """Prefect server and the deployment runner start together.
+
+    `--only prefect` also starts `schedules` so the UI is not an empty API.
+    `--skip prefect` drops the runner too. `--skip schedules` keeps the UI
+    without cron. `--only schedules` still attaches to a server already up.
+    """
+    skipped = set(skip or [])
+    catalog = services()
+    wanted = {s.name for s in catalog} if not only else set(only)
+    if "prefect" in wanted and "schedules" not in skipped:
+        wanted.add("schedules")
+    if "prefect" in skipped:
+        skipped.add("schedules")
+    return [s for s in catalog if s.name in wanted and s.name not in skipped]
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description="Start the Quantis local stack.")
     parser.add_argument(
@@ -293,12 +350,14 @@ def main(argv: list[str] | None = None) -> int:
         default=[],
         help="skip these",
     )
+    parser.add_argument(
+        "--with-schedules",
+        action="store_true",
+        help="deprecated no-op: the cron runner already starts with prefect",
+    )
     args = parser.parse_args(argv)
 
-    selected = services()
-    if args.only:
-        selected = [s for s in selected if s.name in args.only]
-    selected = [s for s in selected if s.name not in args.skip]
+    selected = choose_services(only=args.only, skip=args.skip)
 
     if not selected:
         print("no services selected", file=sys.stderr)

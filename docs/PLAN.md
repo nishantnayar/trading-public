@@ -247,8 +247,16 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    bps). Sector-neutralisation currently has **no edge**. Vol-targeting, name caps, and
    rank-weighting are still open. Run `uv run python -m quantis.backtest.compare`.
    behind a `portfolio.construct` interface (the seam the RL agent later plugs into).
-7. **Execution** — SimulatedBroker + Alpaca paper adapter behind one interface.
-8. **Orchestration** — Prefect deployments: daily ingest, weekly retrain, weekly rebalance.
+7. **Execution** — ✅ **done.** `SimulatedBroker` + `AlpacaPaperClient` behind
+   `ExecutionClient`. Default is the in-process ledger (`QUANTIS_BROKER=simulated`).
+   Alpaca construction raises `LiveTradingDisabled` unless `ALPACA_PAPER` is true, and
+   the SDK client is always created with `paper=True`. Run
+   `uv run python -m quantis.execution.broker`.
+8. **Orchestration** — ✅ **done.** Prefect deployments: weekday incremental ingest
+   17:15 local, Saturday research 08:00, Monday rebalance 09:40. `scripts/start.py`
+   starts the server, creates process pool `quantis-ingestion`, and starts a worker so
+   the Work Pools page is active. `--skip schedules` keeps the UI without a worker.
+   Rebalance defaults to simulated so cron cannot submit paper orders by accident.
 9. **Dashboard** — (a) **FastAPI** backend (`src/quantis/api/`) exposing coverage,
    universe, bars, signals, positions, model diagnostics as JSON; (b) **Next.js** frontend
    (`frontend/`) with the 5 screens matching the mockups, consuming the API. Retire the

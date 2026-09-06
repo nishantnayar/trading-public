@@ -7,9 +7,18 @@ import json
 
 import pandas as pd
 from sqlalchemy import func, select
+from sqlalchemy.exc import ProgrammingError
 
 from quantis.db.engine import session_scope
-from quantis.db.models import ModelRun, Position, Prediction, Symbol
+from quantis.db.models import (
+    BrokerAccount,
+    BrokerFill,
+    BrokerPosition,
+    ModelRun,
+    Position,
+    Prediction,
+    Symbol,
+)
 
 FEATURE_FAMILY = {
     "mom_1m": "momentum",
@@ -248,4 +257,51 @@ def model_snapshot() -> dict:
         "break_even_bps": float(row.break_even_bps) if row.break_even_bps is not None else None,
         "shap": shap,
         "params": params,
+    }
+
+
+def broker_snapshot(limit: int = 20) -> dict:
+    """Simulated (or last persisted) paper ledger — not target weights."""
+    empty: dict = {
+        "broker": "simulated",
+        "cash": None,
+        "n_positions": 0,
+        "positions": [],
+        "fills": [],
+    }
+    try:
+        with session_scope() as session:
+            acct = session.get(BrokerAccount, "simulated")
+            positions = (
+                session.execute(select(BrokerPosition).where(BrokerPosition.broker == "simulated"))
+                .scalars()
+                .all()
+            )
+            fills = session.scalars(
+                select(BrokerFill)
+                .where(BrokerFill.broker == "simulated")
+                .order_by(BrokerFill.submitted_at.desc())
+                .limit(limit)
+            ).all()
+    except ProgrammingError:
+        return empty
+    return {
+        "broker": "simulated",
+        "cash": float(acct.cash) if acct else None,
+        "n_positions": len(positions),
+        "positions": [
+            {"symbol": p.symbol, "qty": float(p.qty)} for p in positions if abs(float(p.qty)) > 1e-9
+        ][:40],
+        "fills": [
+            {
+                "broker": f.broker,
+                "symbol": f.symbol,
+                "side": f.side,
+                "qty": float(f.qty),
+                "price": float(f.price) if f.price is not None else None,
+                "status": f.status,
+                "submitted_at": f.submitted_at.isoformat() if f.submitted_at else None,
+            }
+            for f in fills
+        ],
     }

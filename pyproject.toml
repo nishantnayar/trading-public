@@ -18,6 +18,9 @@ dependencies = [
     "httpx>=0.27",
     "tenacity>=8",
     "loguru>=0.7",
+    # Prefect 2.20's GatherTaskGroup is not compatible with AnyIO 4.14+
+    # (abstract create_task). Keep 2.x on AnyIO 4.13 until Prefect 3.
+    "anyio>=4.4,<4.14",
 ]
 
 [dependency-groups]

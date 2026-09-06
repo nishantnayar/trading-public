@@ -15,5 +15,5 @@ def test_health() -> None:
 
 def test_portfolio_routes_are_mounted() -> None:
     paths = set(app.openapi()["paths"])
-    for path in ("/signals", "/signals/quintiles", "/positions", "/model"):
+    for path in ("/signals", "/signals/quintiles", "/positions", "/model", "/broker"):
         assert path in paths

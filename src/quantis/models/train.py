@@ -22,7 +22,7 @@ from loguru import logger
 
 from quantis.features.definitions import FEATURE_NAMES
 from quantis.models import metrics
-from quantis.models.cv import PurgedWalkForwardCV
+from quantis.models.cv import DEFAULT_EMBARGO, PurgedWalkForwardCV
 from quantis.models.dataset import DEFAULT_START, build_panel, panel_summary
 from quantis.models.labels import DEFAULT_HORIZON
 
@@ -51,23 +51,77 @@ LGBM_PARAMS = {
 NUM_ROUNDS = 400
 
 
-def fit_fold(train: pd.DataFrame, valid: pd.DataFrame, params: dict, num_rounds: int = NUM_ROUNDS):
-    """Fit one fold and return (booster, validation frame with predictions)."""
+def _inner_watch_split(
+    train: pd.DataFrame,
+    horizon: int,
+    embargo: int,
+    frac: float = 0.15,
+    min_inner_train: int = 252,
+) -> tuple[pd.DataFrame, pd.DataFrame] | None:
+    """Carve a purged early-stopping watch set from the TAIL of the training fold.
+
+    The watch set is the last `frac` of the training dates; a `horizon + embargo` gap is
+    purged between the inner-train block and the watch set so the watch labels never
+    overlap the rows the model fits on. Returns None when there is too little history for
+    a clean split, signalling the caller to skip early stopping.
+    """
+    dates = np.array(sorted(train["date"].unique()))
+    n = len(dates)
+    n_watch = max(1, round(n * frac))
+    cut = n - n_watch
+    train_cut = cut - (horizon + embargo)
+    if train_cut < min_inner_train:
+        return None
+
+    inner_train_dates = set(dates[:train_cut])
+    watch_dates = set(dates[cut:])
+    inner_train = train[train["date"].isin(inner_train_dates)]
+    watch = train[train["date"].isin(watch_dates)]
+    return inner_train, watch
+
+
+def fit_fold(
+    train: pd.DataFrame,
+    valid: pd.DataFrame,
+    params: dict,
+    num_rounds: int = NUM_ROUNDS,
+    horizon: int = DEFAULT_HORIZON,
+    embargo: int = DEFAULT_EMBARGO,
+):
+    """Fit one fold and return (booster, validation frame with predictions).
+
+    Early stopping uses a purged watch set carved from the training fold — NOT the
+    validation fold. Selecting the stopping iteration on the same rows that become the
+    out-of-fold predictions would leak the validation labels into the reported IC and the
+    backtest; the inner watch set keeps the OOF genuinely out-of-sample.
+    """
     import lightgbm as lgb
 
-    train_set = lgb.Dataset(train[FEATURE_NAMES], label=train["label"])
-    valid_set = lgb.Dataset(valid[FEATURE_NAMES], label=valid["label"], reference=train_set)
+    split = _inner_watch_split(train, horizon, embargo)
+    if split is None:
+        # Too little history for a clean watch set: train on the whole fold for a fixed
+        # budget rather than early-stopping on the validation block.
+        booster = lgb.train(
+            params,
+            lgb.Dataset(train[FEATURE_NAMES], label=train["label"]),
+            num_boost_round=num_rounds,
+            callbacks=[lgb.log_evaluation(0)],
+        )
+    else:
+        inner_train, watch = split
+        train_set = lgb.Dataset(inner_train[FEATURE_NAMES], label=inner_train["label"])
+        watch_set = lgb.Dataset(watch[FEATURE_NAMES], label=watch["label"], reference=train_set)
+        booster = lgb.train(
+            params,
+            train_set,
+            num_boost_round=num_rounds,
+            valid_sets=[watch_set],
+            callbacks=[lgb.early_stopping(50, verbose=False), lgb.log_evaluation(0)],
+        )
 
-    booster = lgb.train(
-        params,
-        train_set,
-        num_boost_round=num_rounds,
-        valid_sets=[valid_set],
-        callbacks=[lgb.early_stopping(50, verbose=False), lgb.log_evaluation(0)],
-    )
-
+    best_iteration = booster.best_iteration or num_rounds
     scored = valid.copy()
-    scored["pred"] = booster.predict(valid[FEATURE_NAMES], num_iteration=booster.best_iteration)
+    scored["pred"] = booster.predict(valid[FEATURE_NAMES], num_iteration=best_iteration)
     return booster, scored
 
 
@@ -114,7 +168,9 @@ def run(
 
     for fold, (train_idx, valid_idx) in enumerate(cv.split(panel), start=1):
         train, valid = panel.iloc[train_idx], panel.iloc[valid_idx]
-        booster, scored = fit_fold(train, valid, params, num_rounds)
+        booster, scored = fit_fold(
+            train, valid, params, num_rounds, horizon=horizon, embargo=embargo
+        )
 
         summary = metrics.summarise(scored)
         summary |= {

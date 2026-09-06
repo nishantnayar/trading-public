@@ -39,3 +39,11 @@ def model() -> dict:
         return q.model_snapshot()
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+
+@router.get("/broker")
+def broker() -> dict:
+    try:
+        return q.broker_snapshot()
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=503, detail=str(exc)) from exc

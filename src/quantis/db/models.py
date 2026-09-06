@@ -220,3 +220,46 @@ class ModelRun(Base):
     break_even_bps: Mapped[float | None] = mapped_column(Numeric(18, 8))
     shap_json: Mapped[str | None] = mapped_column(Text)
     params_json: Mapped[str | None] = mapped_column(Text)
+
+
+class BrokerAccount(Base):
+    """Cash ledger for a broker backend (simulated book, or a snapshot of paper)."""
+
+    __tablename__ = "broker_accounts"
+
+    broker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    cash: Mapped[float] = mapped_column(Numeric(18, 4), default=100000)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BrokerPosition(Base):
+    """Open quantity at a broker. Qty is signed (short = negative)."""
+
+    __tablename__ = "broker_positions"
+
+    broker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    qty: Mapped[float] = mapped_column(Numeric(18, 6))
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BrokerFill(Base):
+    """One submitted (and usually filled) order."""
+
+    __tablename__ = "broker_fills"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    broker: Mapped[str] = mapped_column(String(32), index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    side: Mapped[str] = mapped_column(String(8))
+    qty: Mapped[float] = mapped_column(Numeric(18, 6))
+    price: Mapped[float | None] = mapped_column(Numeric(18, 6))
+    status: Mapped[str] = mapped_column(String(16), default="filled")
+    submitted_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    detail: Mapped[str | None] = mapped_column(String(512))

@@ -8,3 +8,5 @@ font = "monospace"
 
 [server]
 headless = true
+# Dedicated port so quantis never collides with other local Streamlit apps.
+port = 8502

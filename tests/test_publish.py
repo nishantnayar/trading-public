@@ -1,4 +1,4 @@
-"""Audit rows and portfolio API endpoints."""
+"""Audit rows and portfolio API endpoints (need a live Postgres)."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from quantis.db.models import Base
 client = TestClient(app)
 
 
-def test_ingest_run_round_trip() -> None:
+def test_ingest_run_round_trip(require_postgres: None) -> None:
     Base.metadata.create_all(get_engine())
     run_id = start_ingest_run("test-audit")
     finish_ingest_run(run_id, status="success", symbols_processed=3, rows_written=9, detail="ok")
@@ -25,7 +25,7 @@ def test_ingest_run_round_trip() -> None:
     assert match["flow"] == "test-audit"
 
 
-def test_api_portfolio_endpoints_respond() -> None:
+def test_api_portfolio_endpoints_respond(require_postgres: None) -> None:
     Base.metadata.create_all(get_engine())
     for path in ("/signals", "/signals/quintiles", "/positions", "/model"):
         response = client.get(path)

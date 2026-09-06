@@ -9,7 +9,8 @@ import { useApi } from "@/lib/useApi";
 import { C, MONO } from "@/lib/palette";
 
 const RANGES: Record<string, number> = { "1M": 31, "6M": 186, "1Y": 366, "3Y": 1097 };
-const SYMBOL = "AAPL";
+
+type UniverseRow = { symbol: string; name: string | null; sector: string | null };
 
 function fmtVol(v: number): string {
   if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
@@ -30,9 +31,18 @@ function spanText(cov: Coverage): string {
 
 export default function OverviewPage() {
   const [range, setRange] = useState("3Y");
+  const [symbol, setSymbol] = useState("AAPL");
+  const [input, setInput] = useState("AAPL");
   const cov = useApi<Coverage>("/coverage");
   const sectors = useApi<SectorCount[]>("/sectors");
-  const bars = useApi<Bar[]>(`/bars/${SYMBOL}?start=${isoDaysAgo(RANGES[range])}`);
+  const universe = useApi<UniverseRow[]>("/universe");
+  const bars = useApi<Bar[]>(`/bars/${symbol}?start=${isoDaysAgo(RANGES[range])}`);
+
+  const known = new Set((universe.data ?? []).map((r) => r.symbol));
+  const commit = (raw: string) => {
+    const s = raw.trim().toUpperCase();
+    if (s) setSymbol(s);
+  };
 
   const list = bars.data ?? [];
   const last = list.at(-1);
@@ -49,8 +59,43 @@ export default function OverviewPage() {
     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.4fr) minmax(260px,1fr)", gap: 14, alignItems: "start" }}>
       {/* PRICE */}
       <Panel>
-        <div style={{ display: "flex", alignItems: "center", gap: 16, height: 36, padding: "0 14px", borderBottom: `1px solid ${C.border}` }}>
-          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: C.t3 }}>PRICE · {SYMBOL}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, height: 36, padding: "0 14px", borderBottom: `1px solid ${C.border}` }}>
+          <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.12em", color: C.t3 }}>PRICE ·</span>
+          <input
+            list="universe-symbols"
+            value={input}
+            spellCheck={false}
+            autoCapitalize="characters"
+            onChange={(e) => {
+              setInput(e.target.value);
+              // commit immediately when the value is an exact universe pick
+              if (known.has(e.target.value.trim().toUpperCase())) commit(e.target.value);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commit(input);
+            }}
+            onBlur={() => commit(input)}
+            style={{
+              width: 88,
+              background: C.track,
+              border: `1px solid ${C.border}`,
+              color: C.text,
+              fontFamily: MONO,
+              fontSize: 12,
+              fontWeight: 600,
+              letterSpacing: "0.04em",
+              textTransform: "uppercase",
+              padding: "4px 8px",
+              outline: "none",
+            }}
+          />
+          <datalist id="universe-symbols">
+            {(universe.data ?? []).map((r) => (
+              <option key={r.symbol} value={r.symbol}>
+                {r.name ?? ""}
+              </option>
+            ))}
+          </datalist>
           <span style={{ fontFamily: MONO, fontSize: 11, color: C.t4 }}>adjusted · IEX · {range}</span>
           <div style={{ display: "flex", marginLeft: "auto", border: `1px solid ${C.border}` }}>
             {Object.keys(RANGES).map((r) => (

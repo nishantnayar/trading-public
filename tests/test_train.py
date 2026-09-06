@@ -11,15 +11,20 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from quantis.features.definitions import FEATURE_NAMES
 from quantis.models import metrics
 from quantis.models.cv import PurgedWalkForwardCV
+from quantis.models.dataset import ALL_FEATURE_NAMES as FEATURE_NAMES
 from quantis.models.train import LGBM_PARAMS, fit_fold, shap_importance
 
 
 @pytest.fixture
 def synthetic() -> pd.DataFrame:
-    """Panel where the label is a noisy linear function of two features."""
+    """Panel where the label is a noisy linear function of two features.
+
+    Columns cover ALL_FEATURE_NAMES (price + fundamental) since `fit_fold` now trains
+    on that full set; the extra fundamental columns carry pure noise, same as any
+    other feature the planted signal doesn't use.
+    """
     rng = np.random.default_rng(0)
     dates = pd.bdate_range("2022-01-03", periods=400)
     symbols = [f"S{i:03d}" for i in range(60)]

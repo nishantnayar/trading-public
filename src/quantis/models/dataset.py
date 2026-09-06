@@ -11,21 +11,32 @@ from sqlalchemy import select
 from quantis.db.engine import get_engine, session_scope
 from quantis.db.models import DailyBar, Feature
 from quantis.features.definitions import FEATURE_NAMES
+from quantis.features.fundamental_build import FUND_FEATURE_NAMES
 from quantis.models.labels import DEFAULT_HORIZON, make_labels, to_long
 
 # The cross-section is effectively empty before 2020 (see docs/LIMITATIONS.md): 2018-19
 # holds ~270 rows across <=10 symbols, which cannot support a quintile spread.
 DEFAULT_START = dt.date(2020, 1, 1)
 
+# Price features (11) are required complete — see `load_features`. Fundamental
+# features (4, value/quality) are appended but stay OPTIONAL: coverage depends on the
+# EDGAR backfill and LightGBM handles the resulting NaNs natively, so they must never
+# be included in a `dropna` requirement the way price features are.
+ALL_FEATURE_NAMES = FEATURE_NAMES + FUND_FEATURE_NAMES
+
 
 def load_features(start: dt.date | None = DEFAULT_START) -> pd.DataFrame:
-    """Long feature rows, requiring a COMPLETE feature vector.
+    """Long feature rows: the 11 price features REQUIRED complete, plus the 4
+    fundamental (value/quality) features left as-is (may be NaN).
 
-    Incomplete rows are dropped rather than imputed: `mom_12_1` needs 252 sessions, so
-    early rows are missing it, and imputing a fabricated momentum value would inject
-    signal that never existed. All 11 features are fully populated from 2024 onward.
+    Price rows are dropped rather than imputed when incomplete: `mom_12_1` needs 252
+    sessions, so early rows are missing it, and imputing a fabricated momentum value
+    would inject signal that never existed. All 11 price features are fully populated
+    from 2024 onward. Fundamental features are sparser by nature (quarterly filings,
+    EDGAR backfill still growing coverage) and are NOT required — see
+    `quantis/features/fundamental_build.py`.
     """
-    columns = [Feature.symbol, Feature.date, *[getattr(Feature, n) for n in FEATURE_NAMES]]
+    columns = [Feature.symbol, Feature.date, *[getattr(Feature, n) for n in ALL_FEATURE_NAMES]]
     query = select(*columns)
     if start is not None:
         query = query.where(Feature.date >= start)
@@ -33,16 +44,22 @@ def load_features(start: dt.date | None = DEFAULT_START) -> pd.DataFrame:
     with session_scope() as session:
         rows = session.execute(query.order_by(Feature.date)).all()
 
-    df = pd.DataFrame(rows, columns=["symbol", "date", *FEATURE_NAMES])
+    df = pd.DataFrame(rows, columns=["symbol", "date", *ALL_FEATURE_NAMES])
     if df.empty:
         return df
 
-    for name in FEATURE_NAMES:
+    for name in ALL_FEATURE_NAMES:
         df[name] = df[name].astype(float)
 
     before = len(df)
     df = df.dropna(subset=FEATURE_NAMES).reset_index(drop=True)
-    logger.info("features: kept {}/{} complete rows", len(df), before)
+    fund_coverage = int(df[FUND_FEATURE_NAMES].notna().any(axis=1).sum()) if len(df) else 0
+    logger.info(
+        "features: kept {}/{} complete-price rows ({} also have fundamental data)",
+        len(df),
+        before,
+        fund_coverage,
+    )
     return df
 
 
@@ -94,6 +111,8 @@ def panel_summary(panel: pd.DataFrame) -> dict:
     if panel.empty:
         return {"rows": 0}
     per_date = panel.groupby("date").size()
+    fund_present = [c for c in FUND_FEATURE_NAMES if c in panel.columns]
+    fund_coverage_rows = int(panel[fund_present].notna().any(axis=1).sum()) if fund_present else 0
     return {
         "rows": len(panel),
         "symbols": int(panel["symbol"].nunique()),
@@ -102,6 +121,10 @@ def panel_summary(panel: pd.DataFrame) -> dict:
         "end": str(panel["date"].max()),
         "median_names_per_date": int(per_date.median()),
         "min_names_per_date": int(per_date.min()),
+        "fundamental_coverage_rows": fund_coverage_rows,
+        "fundamental_coverage_pct": (
+            round(100.0 * fund_coverage_rows / len(panel), 2) if len(panel) else 0.0
+        ),
     }
 
 

@@ -37,7 +37,7 @@ prices, and pipeline status.
 | Layer | What you can run today |
 |---|---|
 | **Prices** | ~757k Alpaca daily bars, 502 symbols, upserted into Postgres |
-| **Features** | 11 point-in-time price features (~755k rows) with leakage tests |
+| **Features** | 11 point-in-time price features (~755k rows, leakage-tested) + 4 optional value/quality features from EDGAR fundamentals |
 | **Model** | LightGBM + purged walk-forward CV, MLflow tracking, SHAP |
 | **Backtest** | Dollar-neutral quintile L/S, cost sweep, Phase 6 construction levers |
 | **Paper broker** | Simulated ledger (default) + Alpaca paper adapter; no live orders |
@@ -52,8 +52,14 @@ no-trade buffer plus a 10-session hold cuts that to **13.4x** and lifts break-ev
 **25.4 bps**; sector-neutralising the 5.3% IT tilt **destroys** the edge. Full
 accounting: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md#backtest-phase-5).
 
-Fundamentals exist as a **5-symbol yfinance pilot**. Positions in the UI are **target
-weights**; paper qty/cash is `GET /broker` after a simulated rebalance.
+Fundamentals now come from **SEC EDGAR** (free, no API key): 503 symbols, 2006→2026,
+real filing dates as the point-in-time anchor. Value/quality features are optional —
+LightGBM handles the sparser coverage (78% of panel rows) natively rather than
+requiring them complete like the price features. Whether they improve the model is
+still an open question (one run isn't enough to tell) — see
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md#fundamentals-coverage--resolved-via-sec-edgar).
+Positions in the UI are **target weights**; paper qty/cash is `GET /broker` after a
+simulated rebalance.
 
 Verified counts, tests, and design intent: [`docs/PROGRESS.md`](docs/PROGRESS.md),
 [`docs/PLAN.md`](docs/PLAN.md).
@@ -65,8 +71,8 @@ Verified counts, tests, and design intent: [`docs/PROGRESS.md`](docs/PROGRESS.md
 ```mermaid
 flowchart LR
     A[Alpaca<br/>daily bars] --> B[(PostgreSQL<br/>quantis)]
-    F[yfinance<br/>fundamentals · pilot] --> B
-    B --> C[Feature store<br/>11 price features]
+    F[SEC EDGAR<br/>fundamentals] --> B
+    B --> C[Feature store<br/>11 price + 4 value/quality]
     C --> D[LightGBM<br/>purged walk-forward]
     D --> BT[Backtest<br/>quintile L/S · cost sweep]
     D -.-> M[MLflow]
@@ -85,7 +91,7 @@ flowchart LR
 | Layer | Tools |
 |---|---|
 | **Language / env** | Python 3.11, [uv](https://github.com/astral-sh/uv) (no Docker) |
-| **Data & storage** | Alpaca Market Data, yfinance, PostgreSQL, SQLAlchemy 2.0 |
+| **Data & storage** | Alpaca Market Data, SEC EDGAR (fundamentals), PostgreSQL, SQLAlchemy 2.0 |
 | **Modeling** | scikit-learn, LightGBM, SHAP, MLflow |
 | **Orchestration** | Prefect (isolated local profile) |
 | **Backend / UI** | FastAPI + Uvicorn, Next.js (React + TypeScript) + Tailwind |
@@ -110,11 +116,13 @@ uv run python scripts/env_check.py    # imports + Postgres ping → "ENV GATE: P
 # 4. Ingest daily bars for the S&P 500
 uv run python -m quantis.orchestration.flows
 
-# 4b. Fundamentals (defaults to 5 names; pass --all for the full universe)
-uv run python scripts/ingest_fundamentals.py
+# 4b. Fundamentals from SEC EDGAR (full universe by default, ~5 min; one-time)
+uv run python scripts/ingest_fundamentals_edgar.py
+uv run python scripts/migrate_add_fundamental_features.py   # one-time: adds 4 columns to `features`
 
-# 4c. Point-in-time price features (writes the `features` table)
+# 4c. Point-in-time features: 11 price (writes `features`) + 4 value/quality from fundamentals
 uv run python -m quantis.features.build
+uv run python -m quantis.features.fundamental_build
 
 # 4d. Train LightGBM (purged walk-forward; writes models/artifacts/)
 uv run python -m quantis.models.train
@@ -201,7 +209,7 @@ src/quantis/
 ├── orchestration/     # Prefect ingest + cron runner (with start.py)
 └── api/               # FastAPI backend
 frontend/              # Next.js dashboard
-scripts/               # start.py, env_check, init_db, ingest_fundamentals
+scripts/               # start.py, env_check, init_db, ingest_fundamentals_edgar
 tests/                 # env, features, leakage, labels, CV, backtest, API
 docs/                  # PLAN · PROGRESS · LIMITATIONS
 ```

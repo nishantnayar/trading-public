@@ -141,6 +141,14 @@ class Feature(Base):
     # Liquidity
     dollar_vol_20d: Mapped[float | None] = mapped_column(Numeric(18, 8))
 
+    # Value / quality (from `fundamentals`, point-in-time asof `as_of`). Sparse by
+    # design — coverage depends on the EDGAR backfill, and LightGBM handles the
+    # resulting NaNs natively rather than requiring these columns complete.
+    gross_margin: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    roe_ttm: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    accruals_ttm: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    book_to_market: Mapped[float | None] = mapped_column(Numeric(18, 8))
+
     computed_at: Mapped[dt.datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )

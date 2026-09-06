@@ -20,9 +20,9 @@ import numpy as np
 import pandas as pd
 from loguru import logger
 
-from quantis.features.definitions import FEATURE_NAMES
 from quantis.models import metrics
 from quantis.models.cv import DEFAULT_EMBARGO, PurgedWalkForwardCV
+from quantis.models.dataset import ALL_FEATURE_NAMES as FEATURE_NAMES
 from quantis.models.dataset import DEFAULT_START, build_panel, panel_summary
 from quantis.models.labels import DEFAULT_HORIZON
 

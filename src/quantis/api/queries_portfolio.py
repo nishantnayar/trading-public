@@ -32,6 +32,10 @@ FEATURE_FAMILY = {
     "dist_52w_high": "technical",
     "ma_ratio_50_200": "technical",
     "dollar_vol_20d": "liquidity",
+    "gross_margin": "quality",
+    "roe_ttm": "quality",
+    "accruals_ttm": "quality",
+    "book_to_market": "value",
 }
 
 

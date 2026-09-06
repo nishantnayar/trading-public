@@ -5,74 +5,99 @@ would take to fix each one. Kept current as phases land.
 
 ---
 
-## Fundamentals coverage — **BLOCKING for value/quality features**
+## Fundamentals coverage — **RESOLVED via SEC EDGAR**
 
-**Status:** pilot only — 5 symbols ingested (`AAPL, MSFT, JPM, XOM, LLY`), 25 rows,
-`2025-06-30 → 2026-06-30`.
+**Status (2026-09-06):** full-universe backfill from SEC EDGAR's XBRL `companyfacts`
+API. 33,659 quarterly rows, **503 symbols**, spanning **2006-09 → 2026-08** — the
+`YFinanceFundamentals` pilot (5 symbols, 25 rows, one year) is superseded and left in
+`data/fundamentals.py` only as a documented fallback/reference implementation.
 
-### 1. yfinance returns only ~5 usable quarters
+### Why EDGAR instead of yfinance
 
-The free yfinance quarterly statements expose roughly **5 usable quarters** per ticker
-(it pads older columns with all-NaN, which the loader now drops). Daily bars go back to
-**2017-11**, so fundamentals cover only about **1 of the ~9 available years**.
-
-Consequence: **value and quality features cannot be trained on meaningful history.**
-A cross-sectional model needs the feature present across the whole training window; one
-year of fundamentals yields ~4 quarterly observations per name, which is far too few for
-the purged-CV scheme in Phase 4.
-
-Options, cheapest first:
-
-| Option | Cost | History | Notes |
-|---|---|---|---|
-| Ship price-only features (momentum, vol, technical, liquidity) | free | full 2017→ | Phase 3 proceeds now; model is honest but has no value/quality leg |
-| SimFin free tier | free, API key | ~5 years | Bulk CSV download, no per-symbol rate limit |
-| Sharadar SF1 (Nasdaq Data Link) | paid | 20+ years | Point-in-time with real filing dates — the correct fix |
-| SEC EDGAR `companyfacts` API | free | 10+ years | True filing dates; needs XBRL tag mapping work |
-
-**Recommendation:** build Phase 3 price-only, and treat value/quality as a follow-up
-gated on a better fundamentals source. Do not train on 5 quarters and pretend otherwise.
-
-**Phase 3 status:** the price-only feature store is implemented (momentum, reversal,
-vol, RSI, 52-week high, MA ratio, dollar volume). Value/quality columns are still
-absent from `features` on purpose.
-
-### 2. `as_of` is an approximation, not a filing date
-
-yfinance gives the fiscal `period_end` but **not** the SEC filing date. The loader sets
-`as_of = period_end + reporting_lag_days` (default **60**, stored per row).
-
-Real 10-Qs are filed in 30–45 days, so 60 is deliberately **late** — the model sees
-figures later than reality, which biases against look-ahead rather than toward it. Any
-source with true filing dates (EDGAR, Sharadar) should overwrite `as_of` directly; the
-column is per-row so no migration is needed.
-
-**Features must filter on `as_of`, never `period_end`.** This is the single easiest place
-to introduce a look-ahead bug.
-
-### 3. TODO — full-universe backfill
-
-The pilot deliberately covers 5 names. **Before Phase 4 the remaining ~497 symbols must
-be ingested**, or value/quality features will silently be null for 99% of the universe.
+The free yfinance quarterly statements expose roughly **5 usable quarters** per
+ticker (it pads older columns with all-NaN). That is far too little history for the
+purged-CV scheme in Phase 4 — one year of fundamentals yields ~4 observations per
+name. SEC EDGAR's `companyfacts` endpoint returns a filer's **entire XBRL history**
+(often 15-20 years) in a single free, no-API-key call, and — the more important
+property — every fact carries the SEC's own **`filed` date**, so `as_of` here is a
+genuine point-in-time anchor rather than `period_end + an assumed lag`. See
+`quantis/data/fundamentals.py::EdgarFundamentals`.
 
 ```bash
-uv run python scripts/ingest_fundamentals.py --all     # ~500 sequential calls, ~20 min
+uv run python scripts/ingest_fundamentals_edgar.py            # full active universe, ~5 min
+uv run python scripts/ingest_fundamentals_edgar.py AAPL MSFT  # subset
+uv run python scripts/migrate_add_fundamental_features.py     # one-time: adds the 4 columns to `features`
+uv run python -m quantis.features.fundamental_build            # builds the daily point-in-time features
 ```
 
-Blockers to resolve first:
-- yfinance has **no batch fundamentals endpoint** — one HTTP call per symbol, paced at
-  `THROTTLE_SECONDS = 1.0` in `scripts/ingest_fundamentals.py`.
-- Rate limiting is likely on a 500-symbol run; the loader skips failures per symbol
-  (logged, batch continues), so reruns are needed until coverage is complete.
-- The upsert is idempotent, so reruns are safe and resumable.
-- Given limitation #1, a full backfill is only worth doing **after** picking a source
-  with real history — otherwise it is 500 calls for one year of data.
+### Known EDGAR data quirks, and how they're handled
 
-**Verify coverage before Phase 4:**
-```python
-from quantis.data.store import fundamental_coverage
-fundamental_coverage()   # expect ~502 symbols, not 5
-```
+1. **Same quarter, different `end` dates across concepts.** A 52/53-week fiscal
+   filer's balance-sheet facts (instant) are often tagged at the true fiscal
+   Saturday-close (e.g. `2025-06-28`) while some duration facts use the nearby
+   calendar quarter-end (`2025-06-30`). An exact-date join would silently split one
+   quarter's data across two half-populated rows. `EdgarFundamentals._bucket_period_ends`
+   clusters `end` dates within a 10-day tolerance into one canonical period.
+2. **Cash-flow-statement items are often YTD-cumulative only.** Many 10-Qs tag
+   `NetCashProvidedByUsedInOperatingActivities` as a 6-month or 9-month cumulative
+   figure, never as a standalone quarter (Q1 is the exception — 3-months-cumulative
+   IS the standalone quarter). `EdgarFundamentals._reconstruct_standalone_quarters`
+   differences consecutive cumulative periods within a fiscal year (Q2 − Q1, Q3 − Q2,
+   FY − Q3) using the `fy`/`fp` tags EDGAR provides on every fact, as a fallback that
+   only fills gaps the as-reported (80–100 day span) facts didn't already cover. A
+   fiscal year missing an earlier quarter simply breaks the differencing chain from
+   that point rather than producing a wrong number.
+3. **Restatements.** The same fiscal quarter is often re-tagged as a "prior period"
+   comparative column in a later filing. The earliest-`filed` value wins per
+   (period, column) — the point-in-time-honest choice, since a later restatement was
+   not knowable at the time.
+4. **No single reliable debt tag.** `LongTermDebt` vs `LongTermDebtNoncurrent` vs
+   `DebtCurrent` vary by filer with no tag used consistently enough to trust without
+   per-filer mapping. `total_debt` is fetched into `Fundamental` but left `NULL` —
+   not used by any current feature.
+5. **`total_debt` and `capex` are ingested but unused.** Both are raw columns on
+   `Fundamental` for future use; no `FUND_FEATURE_NAMES` feature currently consumes
+   them.
+
+### `as_of` is a real filing date, not an approximation
+
+Unlike the retired yfinance path (`as_of = period_end + 60 days`, an assumed lag),
+EDGAR's `as_of` is the SEC's own `filed` timestamp on each fact — the actual date the
+figure became public. **Features must still filter on `as_of`, never `period_end`** —
+that discipline doesn't change, only the anchor's honesty does.
+
+### Value/quality features are OPTIONAL, not required-complete
+
+`quantis/features/fundamental_build.py` computes 4 point-in-time ratios and upserts
+them onto the SAME `features` table as the 11 price columns:
+
+| Feature | Formula | Family |
+|---|---|---|
+| `gross_margin` | TTM gross profit / TTM revenue | quality |
+| `roe_ttm` | TTM net income / total equity | quality |
+| `accruals_ttm` | (TTM net income − TTM operating cash flow) / total assets | quality |
+| `book_to_market` | total equity / (shares outstanding × daily close) | value |
+
+TTM = trailing 4 filed quarters (per-symbol rolling sum), so a name needs at least 4
+quarters of history before any ratio appears. Unlike the 11 price features (which
+`dataset.load_features` requires complete via `dropna`), these 4 are **left as NaN
+when absent** — LightGBM handles missing values natively, so a row simply trains on
+the price features alone when fundamentals aren't yet available. Coverage in the live
+training panel (2021-07 → 2026-08): **78.3% of rows have at least one fundamental
+feature populated** (`accruals_ttm` alone: ~67%, gated by both TTM-OCF availability
+and the reconstruction fallback above).
+
+### Does it help? Inconclusive from one run — treat as an open question
+
+A single retrain with fundamentals wired in produced overall OOF rank IC **0.0117**
+(5 folds), versus the price-only headline of **0.0178** documented below. `book_to_market`
+did surface in the top-6 SHAP features, so the model is using it — but a single-seed,
+single-split comparison cannot distinguish "fundamentals hurt" from ordinary fold
+variance, which the price-only run below already shows is on the same order as the
+signal itself (fold IC ranging −0.02 to +0.04). Properly answering "do fundamentals
+help" needs a multi-seed run with and without `FUND_FEATURE_NAMES`, which has not been
+done. Do not quote either IC as the fundamentals-vs-not verdict without that
+comparison.
 
 ---
 
@@ -113,9 +138,11 @@ figure.
 
 ## Feature store (Phase 3)
 
-- **Price-only.** 11 features: momentum (1m, 3m, 6m, 12-1), short-term reversal (5d),
-  realised vol (20d, 60d), RSI-14, distance from 52w high, 50/200 MA ratio, and log
-  dollar volume. **No value or quality features** — blocked on the fundamentals gap above.
+- **11 price features** (momentum 1m/3m/6m/12-1, short-term reversal 5d, realised vol
+  20d/60d, RSI-14, distance from 52w high, 50/200 MA ratio, log dollar volume), all
+  required-complete, plus **4 value/quality features** from EDGAR fundamentals
+  (`gross_margin`, `roe_ttm`, `accruals_ttm`, `book_to_market`), which are optional /
+  sparser-by-design — see "Fundamentals coverage" above.
 - **Features are raw, not cross-sectionally normalised.** Per-date z-scoring / ranking is
   deliberately left to the model layer (Phase 4) so the same stored feature can be
   neutralised different ways without a rebuild.
@@ -179,8 +206,13 @@ leakage. But it is measured **gross**: no transaction costs, no turnover penalty
 capacity or borrow constraints, and no market-impact model. A 0.018 IC can easily be
 fully consumed by costs at weekly rebalance — Phase 5/6 decides whether anything survives.
 
-Also still missing: **no value or quality leg** (fundamentals gap above), so SHAP
-importance is dominated by `vol_60d` and `mom_12_1` largely by default.
+This is the **price-only** baseline (11 features, no fundamentals) — the run this
+whole Backtest section is built on. A later run with the 4 EDGAR value/quality
+features added (see "Fundamentals coverage" above) produced a *different* overall IC
+(0.0117, one seed) with `book_to_market` in the top-6 SHAP features; that run has not
+been carried through Phase 5/6 or published, and the two single-run ICs are not a
+valid fundamentals-vs-not comparison (see the note there). Everything below still
+describes the original price-only baseline.
 
 ### Other model caveats
 

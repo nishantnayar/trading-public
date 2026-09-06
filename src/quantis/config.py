@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # FastAPI (Next.js on :3000 consumes this)
     api_cors_origins: str = Field(default="http://localhost:3000,http://127.0.0.1:3000")
 
+    # SEC requires a contact-identifying User-Agent on every EDGAR request.
+    edgar_user_agent: str = Field(default="Quantis Research nishant.nayar@gmail.com")
+
     @property
     def sqlalchemy_url(self) -> str:
         """psycopg (v3) SQLAlchemy URL for the project DB."""

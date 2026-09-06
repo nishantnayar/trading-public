@@ -1,0 +1,88 @@
+[project]
+name = "quantis"
+version = "0.1.0"
+description = "Cross-sectional US equity ML trading system (daily/weekly, long/short)."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    # --- data wrangling / storage / config (no version friction) ---
+    "pandas>=2.1,<3",
+    "numpy>=1.26,<2.1",
+    "pyarrow>=15",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.1",
+    "alembic>=1.13",
+    "pydantic>=2",
+    "pydantic-settings>=2",
+    "python-dotenv>=1",
+    "httpx>=0.27",
+    "tenacity>=8",
+    "loguru>=0.7",
+]
+
+[dependency-groups]
+# Market data sources
+data = [
+    "alpaca-py>=0.21",
+    "yfinance>=0.2.40",
+    "pandas-datareader>=0.10",
+]
+# Modeling + experiment tracking
+ml = [
+    "scikit-learn>=1.4",
+    "lightgbm>=4.3",
+    "xgboost>=2.0",
+    "shap>=0.45",
+    "mlflow>=2.14",
+]
+# Backtesting + analytics (numba-constrained corner, isolated on purpose)
+backtest = [
+    "vectorbt>=0.26",
+    "quantstats>=0.0.62",
+]
+# Reinforcement-learning portfolio agent (optional, pulls torch)
+rl = [
+    "gymnasium>=0.29",
+    "stable-baselines3>=2.3",
+    "torch>=2.2",
+]
+# Orchestration
+orchestration = [
+    "prefect>=2.19,<3",
+]
+# Dashboard
+app = [
+    "streamlit>=1.36",
+    "plotly>=5.22",
+    "altair>=5",
+]
+# Dev tooling
+dev = [
+    "pytest>=8",
+    "pytest-cov>=5",
+    "ruff>=0.5",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+    "ipykernel>=6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/quantis"]

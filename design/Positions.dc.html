@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+    body { margin: 0; background: #0a0e12; font-family: 'IBM Plex Sans', system-ui, sans-serif; color: #e6edf3; }
+    a { color: #2dd4bf; } a:hover { color: #5eead4; }
+    .mono { font-family: 'IBM Plex Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+    .th { font-size:11px; text-transform:uppercase; letter-spacing:.6px; color:#5f6b78; padding:0 14px 10px; text-align:left; }
+    .td { padding:10px 14px; font-size:12.5px; border-top:1px solid #161f27; }
+  </style>
+</helmet>
+
+<div style="display:flex; width:1440px; height:980px; background:#0a0e12;">
+  <!-- SIDEBAR -->
+  <div style="width:220px; background:#0c1319; border-right:1px solid #1e2831; display:flex; flex-direction:column; padding:22px 0;">
+    <div style="display:flex; align-items:center; gap:10px; padding:0 22px 26px;">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l3-4 3 3 5-7"/></svg>
+      <div><div style="font-weight:600; font-size:15px;">Quantis</div><div class="mono" style="font-size:10px; color:#5f6b78; letter-spacing:1px;">XS-EQUITY ML</div></div>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:2px; padding:0 12px;">
+      <div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; color:#8b97a3;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg><span style="font-size:14px;">Overview</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; color:#8b97a3;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="14" y2="12"/><line x1="4" y1="18" x2="18" y2="18"/></svg><span style="font-size:14px;">Signals</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; background:#132029; color:#2dd4bf;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><rect x="7" y="10" width="3" height="8"/><rect x="12" y="6" width="3" height="12"/><rect x="17" y="13" width="3" height="5"/></svg><span style="font-size:14px; font-weight:500;">Positions</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; color:#8b97a3;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3"/></svg><span style="font-size:14px;">Model</span></div>
+      <div style="display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:8px; color:#8b97a3;"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg><span style="font-size:14px;">Monitoring</span></div>
+    </div>
+    <div style="margin-top:auto; padding:16px 22px; border-top:1px solid #1e2831;">
+      <div class="mono" style="font-size:11px; color:#5f6b78;">ALPACA · PAPER</div>
+      <div style="display:flex; align-items:center; gap:7px; margin-top:8px;"><span style="width:8px; height:8px; border-radius:50%; background:#22c55e; box-shadow:0 0 8px #22c55e;"></span><span style="font-size:12px; color:#8b97a3;">100 / 100 filled</span></div>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <div style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
+    <div style="display:flex; align-items:center; justify-content:space-between; padding:20px 32px; border-bottom:1px solid #1e2831;">
+      <div>
+        <div style="font-size:20px; font-weight:600;">Positions &amp; Risk</div>
+        <div class="mono" style="font-size:12px; color:#5f6b78; margin-top:3px;">100 open · reconciled with Alpaca 15:43 ET</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <div class="mono" style="font-size:12px; color:#22c55e; border:1px solid #16351f; background:#0f2318; border-radius:8px; padding:8px 12px;">All constraints satisfied</div>
+      </div>
+    </div>
+
+    <div style="padding:24px 32px; overflow:auto;">
+      <!-- risk chips -->
+      <div style="display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:14px; margin-bottom:16px;">
+        <div style="background:#12181f; border:1px solid #1e2831; border-radius:10px; padding:15px;"><div style="font-size:11px; color:#8b97a3; text-transform:uppercase; letter-spacing:.5px;">Portfolio vol</div><div class="mono" style="font-size:20px; font-weight:600; margin-top:6px;">9.6% <span style="font-size:12px; color:#5f6b78;">/ 10% tgt</span></div></div>
+        <div style="background:#12181f; border:1px solid #1e2831; border-radius:10px; padding:15px;"><div style="font-size:11px; color:#8b97a3; text-transform:uppercase; letter-spacing:.5px;">Beta to SPY</div><div class="mono" style="font-size:20px; font-weight:600; margin-top:6px;">0.11</div></div>
+        <div style="background:#12181f; border:1px solid #1e2831; border-radius:10px; padding:15px;"><div style="font-size:11px; color:#8b97a3; text-transform:uppercase; letter-spacing:.5px;">Max name wt</div><div class="mono" style="font-size:20px; font-weight:600; margin-top:6px;">2.4% <span style="font-size:12px; color:#5f6b78;">/ 3% cap</span></div></div>
+        <div style="background:#12181f; border:1px solid #1e2831; border-radius:10px; padding:15px;"><div style="font-size:11px; color:#8b97a3; text-transform:uppercase; letter-spacing:.5px;">Max sector</div><div class="mono" style="font-size:20px; font-weight:600; margin-top:6px;">18% <span style="font-size:12px; color:#5f6b78;">/ 25% cap</span></div></div>
+      </div>
+
+      <div style="display:grid; grid-template-columns:1.7fr 1fr; gap:16px;">
+        <!-- holdings table -->
+        <div style="background:#12181f; border:1px solid #1e2831; border-radius:12px; overflow:hidden;">
+          <div style="padding:16px 18px 6px; display:flex; align-items:center; justify-content:space-between;"><span style="font-size:15px; font-weight:600;">Open Holdings</span><span class="mono" style="font-size:11px; color:#5f6b78;">showing 8 of 100</span></div>
+          <table style="width:100%; border-collapse:collapse;"><thead><tr><th class="th">Side</th><th class="th">Ticker</th><th class="th" style="text-align:right;">Qty</th><th class="th" style="text-align:right;">Mkt val</th><th class="th" style="text-align:right;">Wt</th><th class="th" style="text-align:right;">uPnL</th></tr></thead><tbody class="mono">
+            <tr><td class="td"><span style="color:#22c55e; font-size:10px; background:#0f2318; padding:2px 6px; border-radius:4px;">L</span></td><td class="td">NVDA</td><td class="td" style="text-align:right;">168</td><td class="td" style="text-align:right;">$30,840</td><td class="td" style="text-align:right;">2.4%</td><td class="td" style="text-align:right; color:#22c55e;">+$2,110</td></tr>
+            <tr><td class="td"><span style="color:#22c55e; font-size:10px; background:#0f2318; padding:2px 6px; border-radius:4px;">L</span></td><td class="td">LLY</td><td class="td" style="text-align:right;">31</td><td class="td" style="text-align:right;">$28,270</td><td class="td" style="text-align:right;">2.2%</td><td class="td" style="text-align:right; color:#22c55e;">+$1,340</td></tr>
+            <tr><td class="td"><span style="color:#22c55e; font-size:10px; background:#0f2318; padding:2px 6px; border-radius:4px;">L</span></td><td class="td">AVGO</td><td class="td" style="text-align:right;">92</td><td class="td" style="text-align:right;">$26,980</td><td class="td" style="text-align:right;">2.1%</td><td class="td" style="text-align:right; color:#f43f5e;">-$410</td></tr>
+            <tr><td class="td"><span style="color:#22c55e; font-size:10px; background:#0f2318; padding:2px 6px; border-radius:4px;">L</span></td><td class="td">COST</td><td class="td" style="text-align:right;">27</td><td class="td" style="text-align:right;">$24,410</td><td class="td" style="text-align:right;">1.9%</td><td class="td" style="text-align:right; color:#22c55e;">+$680</td></tr>
+            <tr><td class="td"><span style="color:#f43f5e; font-size:10px; background:#2a1116; padding:2px 6px; border-radius:4px;">S</span></td><td class="td">XOM</td><td class="td" style="text-align:right;">-268</td><td class="td" style="text-align:right;">$29,540</td><td class="td" style="text-align:right;">2.3%</td><td class="td" style="text-align:right; color:#22c55e;">+$1,020</td></tr>
+            <tr><td class="td"><span style="color:#f43f5e; font-size:10px; background:#2a1116; padding:2px 6px; border-radius:4px;">S</span></td><td class="td">INTC</td><td class="td" style="text-align:right;">-940</td><td class="td" style="text-align:right;">$26,960</td><td class="td" style="text-align:right;">2.1%</td><td class="td" style="text-align:right; color:#22c55e;">+$780</td></tr>
+            <tr><td class="td"><span style="color:#f43f5e; font-size:10px; background:#2a1116; padding:2px 6px; border-radius:4px;">S</span></td><td class="td">T</td><td class="td" style="text-align:right;">-1,120</td><td class="td" style="text-align:right;">$25,700</td><td class="td" style="text-align:right;">2.0%</td><td class="td" style="text-align:right; color:#f43f5e;">-$260</td></tr>
+            <tr><td class="td"><span style="color:#f43f5e; font-size:10px; background:#2a1116; padding:2px 6px; border-radius:4px;">S</span></td><td class="td">CVX</td><td class="td" style="text-align:right;">-158</td><td class="td" style="text-align:right;">$23,140</td><td class="td" style="text-align:right;">1.8%</td><td class="td" style="text-align:right; color:#22c55e;">+$540</td></tr>
+          </tbody></table>
+        </div>
+
+        <!-- pending rebalance orders -->
+        <div style="background:#12181f; border:1px solid #1e2831; border-radius:12px; padding:20px;">
+          <div style="font-size:15px; font-weight:600;">Next Rebalance <span style="color:#5f6b78; font-weight:400; font-size:13px;">Mon 09:35</span></div>
+          <div style="display:flex; gap:10px; margin-top:14px;">
+            <div style="flex:1; background:#0a0e12; border:1px solid #1e2831; border-radius:8px; padding:12px; text-align:center;"><div class="mono" style="font-size:20px; font-weight:600; color:#22c55e;">12</div><div style="font-size:11px; color:#8b97a3; margin-top:3px;">buys</div></div>
+            <div style="flex:1; background:#0a0e12; border:1px solid #1e2831; border-radius:8px; padding:12px; text-align:center;"><div class="mono" style="font-size:20px; font-weight:600; color:#f43f5e;">11</div><div style="font-size:11px; color:#8b97a3; margin-top:3px;">sells</div></div>
+            <div style="flex:1; background:#0a0e12; border:1px solid #1e2831; border-radius:8px; padding:12px; text-align:center;"><div class="mono" style="font-size:20px; font-weight:600;">23%</div><div style="font-size:11px; color:#8b97a3; margin-top:3px;">turnover</div></div>
+          </div>
+          <div style="height:1px; background:#1e2831; margin:18px 0;"></div>
+          <div style="font-size:13px; color:#8b97a3; margin-bottom:12px;">Est. transaction cost</div>
+          <div class="mono" style="font-size:22px; font-weight:600;">$310 <span style="font-size:12px; color:#5f6b78;">· 2.4 bps</span></div>
+          <div style="margin-top:16px; display:flex; flex-direction:column; gap:9px;" class="mono">
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:#8b97a3;">commission</span><span>$0 (Alpaca)</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:#8b97a3;">est. slippage</span><span>1.9 bps</span></div>
+            <div style="display:flex; justify-content:space-between; font-size:12px;"><span style="color:#8b97a3;">spread cost</span><span>0.5 bps</span></div>
+          </div>
+          <div style="margin-top:18px; background:#132029; border:1px solid #1b3b38; border-radius:8px; padding:11px 14px; display:flex; align-items:center; gap:10px;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#2dd4bf" stroke-width="2"><path d="M12 2v6M12 22v-6"/><circle cx="12" cy="12" r="3"/></svg><span style="font-size:12px; color:#2dd4bf;">Orders staged — paper, not yet sent</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

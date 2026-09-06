@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# uv / venv
+.venv/
+
+# env & secrets
+.env
+*.local
+
+# ML / experiment artifacts
+mlruns/
+models/artifacts/
+*.pkl
+*.joblib
+
+# data dumps
+data/raw/
+data/dumps/
+*.parquet
+*.duckdb
+
+# results (keep committed tearsheets under results/ selectively)
+results/*.tmp
+
+# IDE / OS
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

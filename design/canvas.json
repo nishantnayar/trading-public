@@ -1,0 +1,13 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 980, "title": "Overview" },
+    { "file": "Signals.dc.html", "x": 1520, "y": 0, "w": 1440, "h": 980, "title": "Signals" },
+    { "file": "Positions.dc.html", "x": 3040, "y": 0, "w": 1440, "h": 980, "title": "Positions & Risk" },
+    { "file": "ModelDiagnostics.dc.html", "x": 0, "y": 1100, "w": 1440, "h": 980, "title": "Model Diagnostics" },
+    { "file": "Monitoring.dc.html", "x": 1520, "y": 1100, "w": 1440, "h": 980, "title": "Monitoring" }
+  ],
+  "annotations": [
+    { "id": "brief", "x": 3040, "y": 1100, "w": 620, "text": "Quantis — cross-sectional US equity ML system.\nDark quant-terminal dashboard, 5 core screens. Static hi-fi mockups to align on UI before the Streamlit build.\n\nNumbers are illustrative placeholders." }
+  ],
+  "launch": { "view": "canvas" }
+}

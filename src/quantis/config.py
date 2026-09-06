@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# Repo root = three levels up from this file (src/quantis/config.py).
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_ENV_FILE = _REPO_ROOT / ".env"
+
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Absolute path so .env resolves no matter the working directory (e.g. PyCharm).
+    model_config = SettingsConfigDict(env_file=str(_ENV_FILE), extra="ignore")
 
     # Postgres
     pghost: str = Field(default="localhost")

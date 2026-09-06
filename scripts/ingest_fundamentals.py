@@ -1,12 +1,15 @@
 """Ingest quarterly fundamentals from yfinance.
 
-PILOT SCOPE — defaults to 5 symbols. yfinance has no batch fundamentals endpoint, so a
-full 502-name backfill is ~502 sequential HTTP calls and is rate-limit prone. See
-docs/LIMITATIONS.md ("Fundamentals coverage") before scaling this up.
+PILOT SCOPE — defaults to 5 symbols. yfinance has no batch
+fundamentals endpoint, so a full 502-name backfill is ~502
+sequential HTTP calls and is rate-limit prone. See
+docs/LIMITATIONS.md ("Fundamentals coverage") before scaling
+this up.
 
-Run:  uv run python scripts/ingest_fundamentals.py                 # 5 pilot names
-      uv run python scripts/ingest_fundamentals.py AAPL MSFT       # explicit names
-      uv run python scripts/ingest_fundamentals.py --all           # full universe (slow)
+Run:
+    uv run python scripts/ingest_fundamentals.py  # 5 pilot names
+    uv run python scripts/ingest_fundamentals.py AAPL MSFT
+    uv run python scripts/ingest_fundamentals.py --all  # slow
 """
 
 from __future__ import annotations
@@ -22,7 +25,8 @@ from quantis.data.universe import active_symbols
 
 PILOT_SYMBOLS = ["AAPL", "MSFT", "JPM", "XOM", "LLY"]
 
-# Seconds between symbols — polite pacing so yfinance does not throttle a long backfill.
+# Seconds between symbols — polite pacing so yfinance does not
+# throttle a long backfill.
 THROTTLE_SECONDS = 1.0
 
 
@@ -33,7 +37,8 @@ def main(argv: list[str]) -> int:
     if use_all:
         symbols = active_symbols()
         logger.warning(
-            "full backfill of {} symbols — sequential yfinance calls, expect ~{:.0f} min",
+            "full backfill of {} symbols — sequential yfinance "
+            "calls, expect ~{:.0f} min",
             len(symbols),
             len(symbols) * (THROTTLE_SECONDS + 1.5) / 60,
         )

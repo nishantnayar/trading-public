@@ -1,18 +1,18 @@
 # Quantis documentation
 
-The [root README](../README.md) is the landing page: pitch, architecture, quickstart,
-and roadmap. This folder holds the material that would bloat that page.
+The [root README](../README.md) is **what exists and how to run it**. This folder
+holds design, progress evidence, and caveats — not duplicated on the landing page.
 
 | Doc | What it is for |
 |---|---|
-| [PLAN.md](PLAN.md) | Design rationale, stack decisions, and build phases |
+| [PLAN.md](PLAN.md) | Design rationale, stack decisions, and remaining phases |
 | [PROGRESS.md](PROGRESS.md) | What is built and verified, with row counts and tests |
-| [LIMITATIONS.md](LIMITATIONS.md) | Honest data/model caveats and deferred work |
+| [LIMITATIONS.md](LIMITATIONS.md) | Data/model caveats — for people extending or evaluating the system |
 | [../frontend/README.md](../frontend/README.md) | How to run the Next.js dashboard |
 | [../design/README.md](../design/README.md) | Approved UI mockups |
 
-Do **not** duplicate status here. Roadmap lives in the root README; when a phase
-lands, update that checklist and the matching **Status** note in `PLAN.md`.
+When a phase lands, update **PROGRESS.md** and the matching **Status** note in
+`PLAN.md`. Do not put the roadmap or limitation write-ups back into the README.
 
 ## TODO — Sphinx site (Phase 11, last)
 

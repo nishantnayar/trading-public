@@ -1,4 +1,7 @@
-"""Create all quantis tables (idempotent). Run: uv run python scripts/init_db.py"""
+"""Create all quantis tables (idempotent).
+
+Run: uv run python scripts/init_db.py
+"""
 
 from __future__ import annotations
 

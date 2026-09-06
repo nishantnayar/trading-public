@@ -84,7 +84,8 @@ def run_import_checks() -> int:
 
 
 def run_db_check() -> tuple[bool, str]:
-    """Returns (ok, message). Skipped (ok=True) when no password is configured."""
+    """Returns (ok, message). Skipped (ok=True) when no password is
+    configured."""
     try:
         from quantis.config import get_settings
 
@@ -93,7 +94,10 @@ def run_db_check() -> tuple[bool, str]:
         return False, f"could not load settings: {exc}"
 
     if not settings.has_db_password:
-        return True, "SKIPPED — no PGPASSWORD in .env yet (set it to run the DB ping)"
+        return True, (
+            "SKIPPED — no PGPASSWORD in .env yet "
+            "(set it to run the DB ping)"
+        )
 
     try:
         import psycopg
@@ -125,7 +129,10 @@ def main() -> int:
     if import_failures == 0 and db_ok:
         print("ENV GATE: PASS")
         return 0
-    print(f"ENV GATE: FAIL  ({import_failures} import failure(s), db_ok={db_ok})")
+    print(
+        f"ENV GATE: FAIL  ({import_failures} import failure(s), "
+        f"db_ok={db_ok})"
+    )
     return 1
 
 

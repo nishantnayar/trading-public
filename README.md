@@ -27,9 +27,10 @@ MLflow · **vectorbt** + quantstats (backtest) · Prefect (orchestration) · Str
 
 ## Data
 
-Self-contained: a **one-time bootstrap ETL** copies historical OHLC into this project's
-own `quantis` Postgres database; **Alpaca** supplies incremental daily bars and paper
-execution thereafter. The system has no runtime dependency on any other project's DB.
+Self-contained: **daily** OHLC bars are pulled fresh from **Alpaca** into this project's
+own `quantis` Postgres database (the existing `factor_stat_arb` data is hourly — a
+different granularity — so it is intentionally not reused). Alpaca also handles paper
+execution. The system has no runtime dependency on any other project's DB.
 
 ## Setup
 

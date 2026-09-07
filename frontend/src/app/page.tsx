@@ -5,19 +5,13 @@ import { useState } from "react";
 import { PriceChart } from "@/components/PriceChart";
 import { MetaRows, Panel, PanelHeader } from "@/components/ui";
 import { FEED_LABEL, type Bar, type Coverage, type SectorCount } from "@/lib/api";
+import { fmtVol } from "@/lib/format";
 import { useApi } from "@/lib/useApi";
 import { C, MONO } from "@/lib/palette";
 
 const RANGES: Record<string, number> = { "1M": 31, "6M": 186, "1Y": 366, "3Y": 1097 };
 
 type UniverseRow = { symbol: string; name: string | null; sector: string | null };
-
-function fmtVol(v: number): string {
-  if (v >= 1e9) return `${(v / 1e9).toFixed(1)}B`;
-  if (v >= 1e6) return `${(v / 1e6).toFixed(1)}M`;
-  if (v >= 1e3) return `${(v / 1e3).toFixed(1)}K`;
-  return String(v);
-}
 
 function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 864e5).toISOString().slice(0, 10);
@@ -33,6 +27,7 @@ export default function OverviewPage() {
   const [range, setRange] = useState("3Y");
   const [symbol, setSymbol] = useState("AAPL");
   const [input, setInput] = useState("AAPL");
+  const [hover, setHover] = useState<Bar | null>(null);
   const cov = useApi<Coverage>("/coverage");
   const sectors = useApi<SectorCount[]>("/sectors");
   const universe = useApi<UniverseRow[]>("/universe");
@@ -41,16 +36,24 @@ export default function OverviewPage() {
   const known = new Set((universe.data ?? []).map((r) => r.symbol));
   const commit = (raw: string) => {
     const s = raw.trim().toUpperCase();
-    if (s) setSymbol(s);
+    if (s) {
+      setSymbol(s);
+      setHover(null);
+    }
+  };
+  const changeRange = (r: string) => {
+    setRange(r);
+    setHover(null);
   };
 
   const list = bars.data ?? [];
   const last = list.at(-1);
   const first = list[0];
-  const prev = list.at(-2) ?? last;
-  const changePeriod = last && first ? (last.close / first.close - 1) * 100 : 0;
-  const change1d = last && prev ? (last.close / prev.close - 1) * 100 : 0;
-  const points = list.map((b) => ({ date: b.date, close: b.close }));
+  const shown = hover ?? last;
+  const shownIdx = hover ? list.indexOf(hover) : list.length - 1;
+  const prev = (shownIdx > 0 ? list[shownIdx - 1] : shown) ?? shown;
+  const changePeriod = shown && first ? (shown.close / first.close - 1) * 100 : 0;
+  const change1d = shown && prev ? (shown.close / prev.close - 1) * 100 : 0;
 
   const total = (sectors.data ?? []).reduce((a, r) => a + r.count, 0) || 1;
   const maxSector = Math.max(1, ...(sectors.data ?? []).map((r) => r.count));
@@ -101,7 +104,7 @@ export default function OverviewPage() {
             {Object.keys(RANGES).map((r) => (
               <button
                 key={r}
-                onClick={() => setRange(r)}
+                onClick={() => changeRange(r)}
                 style={{
                   padding: "4px 9px",
                   fontFamily: MONO,
@@ -120,22 +123,22 @@ export default function OverviewPage() {
         </div>
 
         <div style={{ display: "flex", alignItems: "baseline", gap: 18, padding: "12px 14px 0", fontFamily: MONO, flexWrap: "wrap" }}>
-          <span style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.01em" }}>{last ? last.close.toFixed(2) : "—"}</span>
+          <span style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.01em" }}>{shown ? shown.close.toFixed(2) : "—"}</span>
           <span style={{ fontSize: 13, color: changePeriod >= 0 ? C.pos : C.neg }}>
-            {last ? `${changePeriod >= 0 ? "+" : ""}${changePeriod.toFixed(1)}%` : "—"} <span style={{ color: C.t4 }}>{range}</span>
+            {shown ? `${changePeriod >= 0 ? "+" : ""}${changePeriod.toFixed(1)}%` : "—"} <span style={{ color: C.t4 }}>{range}</span>
           </span>
           <span style={{ fontSize: 13, color: change1d >= 0 ? C.pos : C.neg }}>
-            {last ? `${change1d >= 0 ? "+" : ""}${change1d.toFixed(2)}%` : "—"} <span style={{ color: C.t4 }}>1D</span>
+            {shown ? `${change1d >= 0 ? "+" : ""}${change1d.toFixed(2)}%` : "—"} <span style={{ color: C.t4 }}>1D</span>
           </span>
           <span style={{ marginLeft: "auto", fontSize: 11, color: C.t4 }}>
-            {last ? `O ${last.open.toFixed(2)} · H ${last.high.toFixed(2)} · L ${last.low.toFixed(2)} · V ${fmtVol(last.volume)}` : ""}
+            {shown ? `O ${shown.open.toFixed(2)} · H ${shown.high.toFixed(2)} · L ${shown.low.toFixed(2)} · V ${fmtVol(shown.volume)}` : ""}
           </span>
         </div>
 
         {bars.error ? (
           <div style={{ padding: 24, fontFamily: MONO, fontSize: 12, color: C.neg }}>API error: {bars.error} — is the backend on :8000?</div>
         ) : (
-          <PriceChart points={points} />
+          <PriceChart bars={list} onHover={setHover} />
         )}
       </Panel>
 

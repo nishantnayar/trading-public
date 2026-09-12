@@ -55,13 +55,32 @@ def test_compute_signal_flat_when_not_enough_history_for_slow_sma() -> None:
     assert out["signal"].iloc[-1] == "flat"
 
 
-def test_compute_signal_exits_on_close_below_fast_sma() -> None:
-    # Uptrend long enough to be in a golden-cross regime, then a sharp drop
-    # below the fast SMA on the last bar — the stop should flip it flat even
-    # though the SMAs haven't crossed back yet.
+def test_compute_signal_survives_a_single_bar_dip_below_the_fast_sma() -> None:
+    # Uptrend long enough to be in a golden-cross regime, then one sharp
+    # one-bar drop below the fast SMA — with exit_confirm_days=3 this alone
+    # should not be enough to flip it flat (that's the whole point of
+    # debouncing the stop).
     n = 300
     close = pd.Series(np.linspace(100, 200, n))
     close.iloc[-1] = close.iloc[-2] * 0.5
     df = pd.DataFrame({"date": _dates(n), "close": close})
-    out = compute_signal(df, TrendParams(fast=10, slow=50))
+    out = compute_signal(df, TrendParams(fast=10, slow=50, exit_confirm_days=3))
+    assert out["signal"].iloc[-1] == "long"
+
+
+def test_compute_signal_exits_after_consecutive_closes_below_fast_sma() -> None:
+    n = 300
+    close = pd.Series(np.linspace(100, 200, n))
+    close.iloc[-3:] = close.iloc[-4] * 0.5  # three consecutive bars below the stop
+    df = pd.DataFrame({"date": _dates(n), "close": close})
+    out = compute_signal(df, TrendParams(fast=10, slow=50, exit_confirm_days=3))
+    assert out["signal"].iloc[-1] == "flat"
+
+
+def test_compute_signal_exit_confirm_days_one_matches_a_single_bar_stop() -> None:
+    n = 300
+    close = pd.Series(np.linspace(100, 200, n))
+    close.iloc[-1] = close.iloc[-2] * 0.5
+    df = pd.DataFrame({"date": _dates(n), "close": close})
+    out = compute_signal(df, TrendParams(fast=10, slow=50, exit_confirm_days=1))
     assert out["signal"].iloc[-1] == "flat"

@@ -1,7 +1,7 @@
 [project]
 name = "quantis"
 version = "0.1.0"
-description = "Cross-sectional US equity ML trading system (daily/weekly, long/short)."
+description = "US equity market data ingestion pipeline and dashboard."
 readme = "README.md"
 requires-python = ">=3.11,<3.12"
 dependencies = [
@@ -29,25 +29,6 @@ data = [
     "alpaca-py>=0.21",
     "yfinance>=0.2.40",
     "pandas-datareader>=0.10",
-]
-# Modeling + experiment tracking
-ml = [
-    "scikit-learn>=1.4",
-    "lightgbm>=4.3",
-    "xgboost>=2.0",
-    "shap>=0.45",
-    "mlflow>=2.14",
-]
-# Backtesting + analytics (numba-constrained corner, isolated on purpose)
-backtest = [
-    "vectorbt>=0.26",
-    "quantstats>=0.0.62",
-]
-# Reinforcement-learning portfolio agent (optional, pulls torch)
-rl = [
-    "gymnasium>=0.29",
-    "stable-baselines3>=2.3",
-    "torch>=2.2",
 ]
 # Orchestration
 orchestration = [

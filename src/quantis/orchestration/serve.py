@@ -27,11 +27,7 @@ from prefect.flows import EntrypointType
 from prefect.utilities.asyncutils import sync_compatible
 
 from quantis.config import _REPO_ROOT, get_settings
-from quantis.orchestration.flows import (
-    ingest_incremental,
-    weekly_rebalance,
-    weekly_research,
-)
+from quantis.orchestration.flows import ingest_incremental
 
 
 def pin_quantis_prefect_env() -> str:
@@ -80,7 +76,7 @@ async def ensure_work_pool(name: str) -> str:
                 WorkPoolCreate(
                     name=name,
                     type="process",
-                    description="Quantis local process pool (ingest, research, rebalance).",
+                    description="Quantis local process pool (ingest).",
                 )
             )
             logger.info("created work pool {}", name)
@@ -95,7 +91,7 @@ def _prefect_cli() -> str:
 
 
 def apply_deployments(pool: str) -> None:
-    """Point the three cron jobs at `pool` so a process worker can pick them up.
+    """Point the ingest cron job at `pool` so a process worker can pick them up.
 
     Kwargs are passed explicitly (not via `**dict`) so the type checker can match
     `to_deployment`'s overloads. `.apply()` and the `.flow_name`/`.name` attributes come
@@ -112,25 +108,7 @@ def apply_deployments(pool: str) -> None:
         entrypoint_type=EntrypointType.MODULE_PATH,
         job_variables=job_variables,
     )
-    research = weekly_research.to_deployment(
-        name="weekly-research",
-        cron="0 8 * * 6",
-        tags=["quantis", "research"],
-        description="Rebuild features, retrain LightGBM, publish scores/weights.",
-        work_pool_name=pool,
-        entrypoint_type=EntrypointType.MODULE_PATH,
-        job_variables=job_variables,
-    )
-    rebalance = weekly_rebalance.to_deployment(
-        name="weekly-rebalance",
-        cron="40 9 * * 1",
-        tags=["quantis", "rebalance"],
-        description="Simulated (default) or alpaca-paper rebalance to published weights.",
-        work_pool_name=pool,
-        entrypoint_type=EntrypointType.MODULE_PATH,
-        job_variables=job_variables,
-    )
-    for deployment in (ingest, research, rebalance):
+    for deployment in (ingest,):
         deployment.apply()  # type: ignore[attr-defined]
         logger.info(
             "applied {}/{} on pool {}",

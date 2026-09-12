@@ -95,54 +95,5 @@ def ingest_incremental() -> dict:
     return ingest_daily_bars.fn(start=start, end=end)
 
 
-@flow(name="rebuild-features")
-def rebuild_features() -> dict:
-    from quantis.features.build import run as build_features
-
-    return build_features()
-
-
-@flow(name="weekly-research")
-def weekly_research() -> dict:
-    """Features -> train -> publish. Heavy; Saturday morning is the intended slot."""
-    from quantis.backtest.publish import publish
-    from quantis.features.build import run as build_features
-    from quantis.models.train import run as train_model
-
-    features = build_features()
-    metrics = train_model(log_mlflow=True)
-    snapshot = publish()
-    return {
-        "features": features,
-        "rank_ic": metrics.get("rank_ic"),
-        "published": snapshot.get("as_of"),
-    }
-
-
-@flow(name="weekly-rebalance")
-def weekly_rebalance(broker: str | None = None) -> dict:
-    """Move the configured broker toward the published target book.
-
-    Defaults to the simulated ledger. Set QUANTIS_BROKER=alpaca-paper (and keep
-    ALPACA_PAPER=true) to submit paper orders. There is no live path.
-    """
-    from quantis.execution.broker import rebalance
-
-    run_id = start_ingest_run("weekly-rebalance")
-    try:
-        result = rebalance(kind=broker)
-        finish_ingest_run(
-            run_id,
-            status="success",
-            symbols_processed=result["n_orders"],
-            rows_written=result["n_filled"],
-            detail=f"{result['broker']} equity={result['equity']:.0f}",
-        )
-        return result
-    except Exception as exc:
-        finish_ingest_run(run_id, status="failed", detail=str(exc))
-        raise
-
-
 if __name__ == "__main__":
     print(ingest_daily_bars())

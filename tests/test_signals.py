@@ -39,6 +39,17 @@ def test_compute_signal_goes_long_in_a_sustained_uptrend() -> None:
     assert out["signal"].iloc[-1] == "long"
 
 
+def test_compute_signal_requires_consecutive_days_to_enter() -> None:
+    # entry_ok flickers true/false/true for two days, never three in a row,
+    # so with entry_confirm_days=3 it should never actually go long.
+    n = 60
+    close = pd.Series(np.linspace(100, 90, n))  # downtrend keeps entry_ok false
+    close.iloc[-3] = close.iloc[-3] * 1.5  # one bar spikes entry_ok true
+    df = pd.DataFrame({"date": _dates(n), "close": close})
+    out = compute_signal(df, TrendParams(fast=5, slow=20, entry_confirm_days=3))
+    assert (out["signal"] == "flat").all()
+
+
 def test_compute_signal_stays_flat_in_a_downtrend() -> None:
     n = 300
     close = pd.Series(np.linspace(200, 100, n))

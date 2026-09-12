@@ -1,15 +1,14 @@
 """Trend-following rule: SMA crossover, confirmed by 12-1 momentum.
 
-Entry (flat -> long) requires all three on the same bar:
+Entry (flat -> long) requires `entry_confirm_days` *consecutive* bars where:
   - fast SMA above slow SMA (golden-cross regime)
   - 12-1 momentum positive (confirms the trend isn't directionless chop)
-  - close above the fast SMA
 
 Exit (long -> flat) requires `exit_confirm_days` *consecutive* closes below
-the fast SMA. A single-bar stop whipsawed constantly on noisy names (dozens
-of round trips with a large majority of trend-days spent flat) - debouncing
-it means one bad close doesn't kick out an otherwise intact trend, at the
-cost of giving back a bit more on a real reversal before exiting.
+the fast SMA. Both default to debounced (not single-bar) triggers: a lone
+bar satisfying (or breaking) the condition whipsawed constantly on noisy
+names, so requiring the condition to hold for a few bars filters out
+one-day noise at the cost of a slightly later entry/exit on the real thing.
 
 This is intentionally not a full backtest engine - it labels each bar so the
 caller (engine.py, backtest.py) can read off signals over time. The state
@@ -32,6 +31,7 @@ class TrendParams:
     slow: int = 200
     momentum_months: int = 12
     momentum_skip_months: int = 1
+    entry_confirm_days: int = 3
     exit_confirm_days: int = 3
 
 
@@ -51,14 +51,19 @@ def compute_signal(df: pd.DataFrame, params: TrendParams | None = None) -> pd.Da
     signals: list[str] = []
     is_long = False
     consecutive_below = 0
+    consecutive_entry = 0
     for entry, below in zip(entry_ok, below_stop, strict=True):
         if is_long:
             consecutive_below = consecutive_below + 1 if below else 0
             if consecutive_below >= params.exit_confirm_days:
                 is_long = False
                 consecutive_below = 0
-        elif entry:
-            is_long = True
+            consecutive_entry = 0
+        else:
+            consecutive_entry = consecutive_entry + 1 if entry else 0
+            if consecutive_entry >= params.entry_confirm_days:
+                is_long = True
+                consecutive_entry = 0
         signals.append("long" if is_long else "flat")
 
     out["signal"] = signals

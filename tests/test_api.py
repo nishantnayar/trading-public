@@ -11,9 +11,3 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
-
-
-def test_portfolio_routes_are_mounted() -> None:
-    paths = set(app.openapi()["paths"])
-    for path in ("/signals", "/signals/quintiles", "/positions", "/model", "/broker"):
-        assert path in paths

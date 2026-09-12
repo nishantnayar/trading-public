@@ -25,6 +25,9 @@ class BacktestResult:
     sharpe: float
     n_trades: int
     time_in_market: float
+    variant: str = ""
+    start: str = ""
+    end: str = ""
 
 
 def backtest_symbol(
@@ -52,6 +55,8 @@ def backtest_symbol(
         sharpe=sharpe,
         n_trades=n_trades,
         time_in_market=time_in_market,
+        start=str(signals["date"].iloc[0]),
+        end=str(signals["date"].iloc[-1]),
     )
 
 
@@ -59,7 +64,7 @@ def run_watchlist(
     symbols: list[str] = WATCHLIST,
     params: TrendParams | None = None,
 ) -> list[BacktestResult]:
-    """Backtest each symbol in `symbols`, loading history from the DB."""
+    """Backtest each symbol in `symbols` over its full stored history."""
     results = []
     for symbol in symbols:
         history = load_price_history(symbol)
@@ -67,6 +72,27 @@ def run_watchlist(
             continue
         result = backtest_symbol(history, params)
         results.append(dataclasses.replace(result, symbol=symbol))
+    return results
+
+
+# Named parameter sets for side-by-side comparison, not just the current default.
+VARIANTS: dict[str, TrendParams] = {
+    "no_debounce": TrendParams(entry_confirm_days=1, exit_confirm_days=1),
+    "exit_only": TrendParams(entry_confirm_days=1, exit_confirm_days=3),
+    "entry_and_exit": TrendParams(entry_confirm_days=3, exit_confirm_days=3),
+}
+
+
+def compare_variants(
+    symbols: list[str] = WATCHLIST,
+    variants: dict[str, TrendParams] | None = None,
+) -> list[BacktestResult]:
+    """Every symbol backtested under every named variant, over its full history."""
+    variants = variants or VARIANTS
+    results = []
+    for name, params in variants.items():
+        for result in run_watchlist(symbols, params):
+            results.append(dataclasses.replace(result, variant=name))
     return results
 
 

@@ -34,6 +34,7 @@ export default function OverviewPage() {
   const bars = useApi<Bar[]>(`/bars/${symbol}?start=${isoDaysAgo(RANGES[range])}`);
 
   const known = new Set((universe.data ?? []).map((r) => r.symbol));
+  const company = (universe.data ?? []).find((r) => r.symbol === symbol);
   const commit = (raw: string) => {
     const s = raw.trim().toUpperCase();
     if (s) {
@@ -121,6 +122,13 @@ export default function OverviewPage() {
             ))}
           </div>
         </div>
+
+        {company && (
+          <div style={{ padding: "10px 14px 0", fontFamily: MONO, fontSize: 12, color: C.t3 }}>
+            {company.name}
+            {company.sector && <span style={{ color: C.t4 }}> · {company.sector}</span>}
+          </div>
+        )}
 
         <div style={{ display: "flex", alignItems: "baseline", gap: 18, padding: "12px 14px 0", fontFamily: MONO, flexWrap: "wrap" }}>
           <span style={{ fontSize: 28, fontWeight: 600, letterSpacing: "-0.01em" }}>{shown ? shown.close.toFixed(2) : "—"}</span>

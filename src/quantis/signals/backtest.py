@@ -22,7 +22,7 @@ import pandas as pd
 
 from quantis.signals.engine import load_price_history
 from quantis.signals.rules import TrendParams, compute_signal
-from quantis.signals.universe import WATCHLIST
+from quantis.signals.universe import full_universe
 
 DEFAULT_COST_BPS_PER_SIDE = 10.0
 
@@ -87,11 +87,13 @@ def backtest_symbol(
 
 
 def run_watchlist(
-    symbols: list[str] = WATCHLIST,
+    symbols: list[str] | None = None,
     params: TrendParams | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
 ) -> list[BacktestResult]:
-    """Backtest each symbol in `symbols` over its full stored history."""
+    """Backtest each symbol in `symbols` (default: the full active universe)
+    over its full stored history."""
+    symbols = symbols if symbols is not None else full_universe()
     results = []
     for symbol in symbols:
         history = load_price_history(symbol)
@@ -111,11 +113,13 @@ VARIANTS: dict[str, TrendParams] = {
 
 
 def compare_variants(
-    symbols: list[str] = WATCHLIST,
+    symbols: list[str] | None = None,
     variants: dict[str, TrendParams] | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
 ) -> list[BacktestResult]:
-    """Every symbol backtested under every named variant, over its full history."""
+    """Every symbol (default: the full active universe) backtested under every
+    named variant, over its full history."""
+    symbols = symbols if symbols is not None else full_universe()
     variants = variants or VARIANTS
     results = []
     for name, params in variants.items():

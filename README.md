@@ -23,7 +23,7 @@
 
 **Quantis** ingests daily equity bars and quarterly fundamentals into a local PostgreSQL
 database, and evaluates a fully mechanical, backtestable trend-following rule (SMA
-crossover confirmed by 12-1 momentum, debounced exit) over a hand-picked watchlist. A
+crossover confirmed by 12-1 momentum, debounced exit) over the full active universe. A
 FastAPI backend and Next.js terminal surface data coverage, the current signal per
 symbol, and pipeline status.
 
@@ -43,21 +43,22 @@ signal side from a simpler, fully-rule-based baseline first — see
 |---|---|
 | **Prices** | ~758k Alpaca daily bars, 503 symbols, upserted into Postgres |
 | **Fundamentals** | Quarterly reports from SEC EDGAR, point-in-time `as_of` dates, 503 symbols back to 2006 |
-| **Signal** | Rule-based trend-follower (`quantis.signals`) over a 22-name, 9-sector watchlist — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
+| **Signal** | Rule-based trend-follower (`quantis.signals`) over the full ~503-name active universe — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
 | **Backtest** | Vectorized long/flat backtest + a 3-variant debounce comparison, no costs modeled |
 | **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute) |
 | **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Monitoring |
 
-The **Model** screen in the UI is a holdover from the deleted ML pipeline and is not
-currently wired to anything — it's next in line for either removal or a real
-replacement once there's a model to show.
+The **Model** screen (a holdover from the deleted ML pipeline) has been removed from
+the UI — there is currently no model in this system to show diagnostics for.
 
-Backtested over its full history (2020-07-27 → today) across the watchlist, the current
-default rule (single-bar entry, 3-day debounced exit) beats both a fully single-bar
-version and a symmetric debounced-entry-and-exit version on median return, at the same
-median Sharpe. It still trails buy-and-hold on most names (expected — it's a long/flat
-rule that sits out drawdowns, not a leveraged momentum bet) and has no edge on names in
-a genuine multi-year decline. See `uv run python -m quantis.signals --compare` and
+Backtested over its full history (2020-07-27 → today) across the full ~503-name active
+universe, with a 10 bps/side cost model: the current default rule (single-bar entry,
+3-day debounced exit) is the best of the three debounce variants tested — most wins
+(251/503), least-negative median net return, and the only one with a (barely) positive
+median Sharpe (0.04) — but median **net** return is negative for all three variants
+tested (-4.7% for the default, vs -19.0% and -6.1% for the other two). Read this
+honestly: a rule this simple having no edge, net of costs, across the broad market is
+the expected result, not a bug — see `uv run python -m quantis.signals --compare` and
 [`src/quantis/signals/rules.py`](src/quantis/signals/rules.py) for the full rationale.
 
 ---
@@ -112,7 +113,7 @@ uv run python -m quantis.orchestration.flows
 # 4b. Fundamentals from SEC EDGAR (full universe by default, ~5 min; one-time)
 uv run python scripts/ingest_fundamentals_edgar.py
 
-# 4c. Compute and persist the trend signal over the watchlist
+# 4c. Compute and persist the trend signal over the full active universe
 uv run python -m quantis.signals --persist
 
 # Optional: backtest the rule, or compare debounce variants
@@ -170,9 +171,8 @@ uv run python scripts/start.py
 |---|---|
 | Overview `/` | Live — coverage, universe, sector mix, price chart |
 | Monitoring `/monitoring` | Live — bar coverage, ingest-run audit |
-| Signals `/signals` | Live — current trend rule signal per watchlist symbol |
+| Signals `/signals` | Live — current trend rule signal per universe symbol |
 | Positions `/positions` | Live — equal-weighted illustrative book of currently-long names |
-| Model `/model` | **Not wired up** — holdover from the deleted ML pipeline |
 
 See [`frontend/README.md`](frontend/README.md).
 

@@ -1,16 +1,19 @@
-"""Hand-picked watchlist for the v1 signal layer.
+"""Universe used by quantis.signals.
 
-Deliberately not `data.universe`'s full 500+-name investable universe — the
-point of starting here is to validate indicators/rules/engine on a bounded,
-diversified set of liquid names before scaling out. Widened from the initial
-5 mega-caps (all Tech/Comm. Services) to span sectors, so debounce-parameter
-comparisons aren't just curve-fit to one narrow, strongly-trending cohort.
-Every symbol here has bars back to 2020-07-27 in `daily_bars`.
+Widened from an initial hand-picked 22-name, 9-sector watchlist to the full
+active investable universe (~503 names, whatever `quantis.data.universe` has
+seeded and ingested bars for) — the 22-name set was still a curated subset,
+and tuning the entry/exit debounce parameters against it carried a real risk
+of overfitting to that specific cohort rather than a property of the rule
+that generalizes. See docs/LIMITATIONS.md. The old list is kept below,
+unused by default, for quick small-sample manual runs.
 """
 
 from __future__ import annotations
 
-WATCHLIST: list[str] = [
+from quantis.data.universe import active_symbols
+
+CURATED_WATCHLIST: list[str] = [
     # Information Technology
     "AAPL",
     "MSFT",
@@ -41,3 +44,12 @@ WATCHLIST: list[str] = [
     "MDLZ",
     "XEL",
 ]
+
+
+def full_universe() -> list[str]:
+    """All active symbols in `symbols` (whatever has been seeded), sorted.
+
+    Not every one necessarily has ingested bar history — callers already
+    skip symbols with no data (`load_price_history` returns an empty frame).
+    """
+    return active_symbols()

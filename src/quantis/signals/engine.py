@@ -11,7 +11,7 @@ from sqlalchemy.dialects.postgresql import insert
 from quantis.db.engine import session_scope
 from quantis.db.models import DailyBar, Signal
 from quantis.signals.rules import TrendParams, compute_signal
-from quantis.signals.universe import WATCHLIST
+from quantis.signals.universe import full_universe
 
 
 def load_price_history(symbol: str, start: dt.date | None = None) -> pd.DataFrame:
@@ -25,10 +25,15 @@ def load_price_history(symbol: str, start: dt.date | None = None) -> pd.DataFram
 
 
 def latest_signals(
-    symbols: list[str] = WATCHLIST,
+    symbols: list[str] | None = None,
     params: TrendParams | None = None,
 ) -> list[dict]:
-    """The most recent signal row for each symbol, or a `no_data` stub if empty."""
+    """The most recent signal row for each symbol, or a `no_data` stub if empty.
+
+    Defaults to the full active universe (~503 names), resolved at call time
+    (not import time) so importing this module never requires a DB connection.
+    """
+    symbols = symbols if symbols is not None else full_universe()
     params = params or TrendParams()
     results: list[dict] = []
     for symbol in symbols:

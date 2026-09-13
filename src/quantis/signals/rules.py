@@ -9,12 +9,17 @@ the fast SMA.
 
 Defaults are the "exit_only" variant from backtest.VARIANTS: single-bar
 entry (entry_confirm_days=1), 3-day debounced exit (exit_confirm_days=3).
-Backtested across 22 names / 9 sectors (2020-07-27 .. 2026-09-10), it beat
-both a fully single-bar rule and a symmetric 3-day-debounced-entry-and-exit
-rule on median return (26.7% vs 10.4% vs 19.9%) at the same median Sharpe
-as the latter (0.29) - see `uv run python -m quantis.signals --compare`.
-Debouncing only the exit avoids the single-bar rule's whipsaw without
-delaying entry into real trends the way a debounced entry does.
+An initial 22-name curated comparison favored it clearly (median return
+26.7% vs 10.4%/19.9% for the other two variants). Re-run over the full
+~503-name active universe at a 10 bps/side cost model, the picture is more
+sobering: median *net* return is negative for all three variants
+(no_debounce -19.0%, exit_only -4.7%, entry_and_exit -6.1%), but exit_only
+is still the clear best of the three — most wins (251/503), least-negative
+median net return, and the only one with a (barely) positive median Sharpe
+(0.04). See `uv run python -m quantis.signals --compare`. Read this as "the
+least-bad of three simple options tested," not "a proven edge" — a rule
+this simple having a negative median net return across the broad market is
+the expected, honest result, not a bug.
 
 This is intentionally not a full backtest engine - it labels each bar so the
 caller (engine.py, backtest.py) can read off signals over time. The state

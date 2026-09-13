@@ -157,14 +157,19 @@ entry, 3-day debounced exit. See
 [`src/quantis/signals/rules.py`](../src/quantis/signals/rules.py) for the full
 rationale and the parameter comparison that picked these defaults.
 
-- **No transaction costs modeled.** `quantis.signals.backtest` is a sanity check on the
-  rule's shape (does it capture trends, how much does it whipsaw), not a P&L estimate.
-  At 89-169 round trips per name over ~6 years, realistic costs would matter.
-- **Tuned on 22 names.** The entry/exit debounce parameters were chosen by comparing
-  variants across the watchlist — a real improvement in aggregate, but with only 22
-  names there's a real risk some of that is curve-fit to this specific set rather than
-  a property of the rule that generalizes. Widening the watchlist further, or testing
-  on out-of-sample names, would help distinguish the two.
+- **Net of realistic costs, the median outcome is a loss — for all three variants
+  tested, across the full universe.** At a 10 bps/side cost model over the full ~503
+  active names (2020-07-27 → 2026-09-10): median net return is -4.7% for the current
+  default (`exit_only`), -19.0% for a fully single-bar rule, and -6.1% for a symmetric
+  debounced-entry-and-exit rule. `exit_only` is the best of the three (most wins,
+  least-negative median, the only one with a barely-positive median Sharpe of 0.04) —
+  but "best of three simple options" is not the same claim as "a proven edge." A rule
+  this simple having no edge net of costs across the broad market is the expected,
+  honest result. Reproduce: `uv run python -m quantis.signals --compare`.
+- **No market impact, slippage dispersion, or borrow cost in the cost model.** It is a
+  flat `cost_bps_per_side` charged on every position change — see
+  `quantis.signals.backtest` module docstring. Real costs would be worse on the more
+  illiquid names in a 500+-name universe, not better.
 - **No edge on genuine multi-year decliners.** Names like CMCSA, ALGN, TROW, MDLZ lose
   money under every variant tested, including versus their own (weak/negative)
   buy-and-hold. Expected for a trend-follower — it has nothing to say about a name with
@@ -174,9 +179,6 @@ rationale and the parameter comparison that picked these defaults.
   constructed portfolio.
 - **No live or paper execution.** Nothing in this repo submits an order against this
   signal. `signals` just records the current long/flat call per symbol.
-- **Watchlist is hand-picked, not the full 500+ universe.** `quantis.signals.universe`
-  is a deliberate 22-name subset chosen to span sectors, not `data.universe`'s full
-  investable universe.
 
 ## Universe
 

@@ -46,13 +46,13 @@ jobs:
         run: uv sync --locked --all-groups
 
       - name: Ruff
-        run: uv run ruff check src tests scripts dashboard alembic
+        run: uv run ruff check src tests scripts alembic
 
       - name: Black
-        run: uv run black --check src tests scripts dashboard alembic
+        run: uv run black --check src tests scripts alembic
 
       - name: Flake8
-        run: uv run flake8 src tests scripts dashboard alembic
+        run: uv run flake8 src tests scripts alembic
 
       - name: mypy
         run: uv run mypy src tests scripts alembic

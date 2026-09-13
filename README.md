@@ -131,7 +131,7 @@ flowchart LR
 ```bash
 # 1. Environment (uv fetches Python 3.11 automatically)
 uv python install 3.11
-uv sync --group data --group orchestration --group api --group app --group dev
+uv sync --group data --group orchestration --group api --group dev
 
 # 2. Configure
 cp .env.example .env          # fill PGPASSWORD and Alpaca paper keys

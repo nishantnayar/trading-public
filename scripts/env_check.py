@@ -26,28 +26,9 @@ CHECKS: list[tuple[str, str, str]] = [
     ("alpaca", "alpaca-py", "data"),
     ("yfinance", "yfinance", "data"),
     ("pandas_datareader", "pandas-datareader", "data"),
-    ("sklearn", "scikit-learn", "ml"),
-    ("lightgbm", "lightgbm", "ml"),
-    ("xgboost", "xgboost", "ml"),
-    ("shap", "shap", "ml"),
-    ("mlflow", "mlflow", "ml"),
-    ("vectorbt", "vectorbt", "backtest"),
-    ("numba", "numba (via vectorbt)", "backtest"),
-    ("llvmlite", "llvmlite (via numba)", "backtest"),
-    ("quantstats", "quantstats", "backtest"),
     ("prefect", "prefect", "orchestration"),
     ("fastapi", "fastapi", "api"),
     ("uvicorn", "uvicorn", "api"),
-    ("streamlit", "streamlit", "app"),
-    ("plotly", "plotly", "app"),
-    ("altair", "altair", "app"),
-]
-
-# Optional (RL group — only present when installed with --group rl).
-OPTIONAL_CHECKS: list[tuple[str, str, str]] = [
-    ("gymnasium", "gymnasium", "rl"),
-    ("stable_baselines3", "stable-baselines3", "rl"),
-    ("torch", "torch", "rl"),
 ]
 
 
@@ -71,15 +52,6 @@ def run_import_checks() -> int:
         except Exception as exc:  # noqa: BLE001
             failures += 1
             print(f"  [FAIL] {label:<26} {type(exc).__name__}: {exc}")
-
-    print("\nOptional (RL group)")
-    print("-" * 52)
-    for import_name, label, group in OPTIONAL_CHECKS:
-        try:
-            mod = importlib.import_module(import_name)
-            print(f"  [ ok ] {label:<26} {_version(mod):<12} ({group})")
-        except Exception:  # noqa: BLE001
-            print(f"  [skip] {label:<26} not installed        ({group})")
     return failures
 
 

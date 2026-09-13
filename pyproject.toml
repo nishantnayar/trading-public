@@ -39,14 +39,6 @@ api = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
 ]
-# Streamlit smoke test (temporary)
-app = [
-    "streamlit>=1.36",
-    # plotly 7.0 removed the `scattermapbox` trace that vectorbt still references,
-    # so cap below 7 until vectorbt migrates to `scattermap`.
-    "plotly>=6,<7",
-    "altair>=5",
-]
 # Dev tooling
 dev = [
     "pytest>=8",

@@ -14,7 +14,6 @@ REQUIRED = [
     "prefect",
     "fastapi",
     "uvicorn",
-    "streamlit",
     "alpaca",
 ]
 

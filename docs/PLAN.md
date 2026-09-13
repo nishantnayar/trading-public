@@ -56,7 +56,6 @@ execution/       simulated broker + optional Alpaca paper-trading adapter
 orchestration/   Prefect flows: daily data pull, weekly retrain, weekly rebalance
 api/             FastAPI backend: JSON endpoints for the Next.js UI
 frontend/        Next.js (React+TS) dashboard: 5 screens (separate npm project)
-dashboard/       Streamlit app: data-layer smoke test (temporary)
 tests/           pytest: leakage checks, feature correctness, backtest invariants
 ```
 
@@ -276,12 +275,12 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    Work Pools page is active. `--skip schedules` keeps the UI without a worker.
 9. **Dashboard** — (a) **FastAPI** backend (`src/quantis/api/`) exposing coverage,
    universe, bars, and signals as JSON; (b) **Next.js** frontend (`frontend/`) consuming
-   the API. Retire the Streamlit smoke test once parity is reached.
-   **Status (2026-09-12):** Overview and Monitoring are unaffected. Signals and
-   Positions were rewired to the Phase 12 rule-based signal (equal-weighted
-   illustrative book for Positions, since there is no portfolio construction anymore).
-   Model screen is not currently wired to anything — a holdover from the deleted
-   pipeline. Streamlit remains at `scripts/dashboard.ps1`.
+   the API. **Done, updated 2026-09-13:** Overview, Signals, Positions, Broker, and
+   Monitoring all read live data (Positions carries both the illustrative equal-weight
+   book and the real backtested portfolio construction; Broker shows the simulated
+   paper ledger and NAV history). The `streamlit` data-layer smoke test
+   (`dashboard/`, `scripts/dashboard.ps1`) was retired now that the Next.js frontend
+   has full parity — deleted along with the `app` dependency group.
 10. **RL agent (advanced / stretch)** — Gymnasium env wrapping the backtest, PPO/SAC via
     Stable-Baselines3, plugged into `portfolio.construct`; benchmark vs the rule-based
     baseline out-of-sample. **Never started; the `rl` dependency group and `src/quantis/rl/`
@@ -310,7 +309,6 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
 - `src/orchestration/flows.py`
 - `src/quantis/api/main.py` (FastAPI app), `src/quantis/api/routes/*.py`
 - `frontend/` (Next.js app: `app/`, `components/`, `lib/api.ts`, Tailwind config)
-- `dashboard/app.py` (Streamlit smoke test — temporary)
 - `scripts/env_check.py`, `tests/test_env.py` (the environment gate)
 - `tests/test_leakage.py`, `tests/test_backtest.py`, `tests/test_features.py`
 - `docs/conf.py` + Sphinx autodoc (Phase 11 — not before the core packages exist)
@@ -324,8 +322,7 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
   `results/` so recruiters see performance without running anything.
 - `uv run uvicorn quantis.api.main:app` serves the JSON API; `npm run dev` in `frontend/`
   serves the Next.js UI showing equity curve, signals, positions, and model diagnostics
-  against the populated Postgres DB. (Streamlit smoke test: `uv run streamlit run
-  dashboard/app.py` on :8502.)
+  against the populated Postgres DB.
 - README documents assumptions, limitations (survivorship bias in the starter universe,
   free-data quality), and next steps — demonstrating honest quant judgment.
 - **Sphinx** (`uv run sphinx-build`) produces HTML under `docs/_build/` from package

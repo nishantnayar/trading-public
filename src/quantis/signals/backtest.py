@@ -20,6 +20,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from quantis.db.engine import session_scope
+from quantis.db.models import Symbol
 from quantis.signals.engine import load_price_history
 from quantis.signals.rules import TrendParams, compute_signal
 from quantis.signals.universe import full_universe
@@ -44,12 +46,17 @@ class BacktestResult:
     end: str = ""
 
 
-def backtest_symbol(
+def _daily_returns(
     df: pd.DataFrame,
-    params: TrendParams | None = None,
-    cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
-) -> BacktestResult:
-    """df must have `date` and `close` columns, ascending. Returns summary stats."""
+    params: TrendParams | None,
+    cost_bps_per_side: float,
+) -> pd.DataFrame:
+    """Per-day gross/net return, position, and trade flag for one symbol.
+
+    Position is the day *after* a signal (no look-ahead). Shared by
+    `backtest_symbol` (aggregate stats) and the sector/regime breakdowns
+    (need the day-by-day series, not just a total).
+    """
     signals = compute_signal(df, params)
     daily_return = signals["close"].pct_change()
     is_long = signals["signal"] == "long"
@@ -58,17 +65,37 @@ def backtest_symbol(
 
     position_int = position.astype(int)
     trade_flag = (position_int - position_int.shift(1, fill_value=0)).abs()
-    n_trades = int(trade_flag.sum())
-    time_in_market = float(position.mean())
-
     net_return = strategy_return - trade_flag * (cost_bps_per_side / 10_000)
 
-    strategy_total = float((1 + strategy_return.fillna(0)).prod() - 1)
-    net_total = float((1 + net_return.fillna(0)).prod() - 1)
+    return pd.DataFrame(
+        {
+            "date": signals["date"],
+            "gross_return": strategy_return,
+            "net_return": net_return,
+            "position": position,
+            "trade_flag": trade_flag,
+        }
+    )
+
+
+def backtest_symbol(
+    df: pd.DataFrame,
+    params: TrendParams | None = None,
+    cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
+) -> BacktestResult:
+    """df must have `date` and `close` columns, ascending. Returns summary stats."""
+    daily = _daily_returns(df, params, cost_bps_per_side)
+    daily_return = df["close"].pct_change()
+
+    n_trades = int(daily["trade_flag"].sum())
+    time_in_market = float(daily["position"].mean())
+
+    strategy_total = float((1 + daily["gross_return"].fillna(0)).prod() - 1)
+    net_total = float((1 + daily["net_return"].fillna(0)).prod() - 1)
     buy_hold_total = float((1 + daily_return.fillna(0)).prod() - 1)
-    sharpe = _annualized_sharpe(strategy_return)
-    net_sharpe = _annualized_sharpe(net_return)
-    break_even = _break_even_bps(strategy_return, trade_flag)
+    sharpe = _annualized_sharpe(daily["gross_return"])
+    net_sharpe = _annualized_sharpe(daily["net_return"])
+    break_even = _break_even_bps(daily["gross_return"], daily["trade_flag"])
 
     return BacktestResult(
         symbol="",
@@ -81,8 +108,8 @@ def backtest_symbol(
         net_sharpe=net_sharpe,
         break_even_bps=break_even,
         cost_bps_per_side=cost_bps_per_side,
-        start=str(signals["date"].iloc[0]),
-        end=str(signals["date"].iloc[-1]),
+        start=str(daily["date"].iloc[0]),
+        end=str(daily["date"].iloc[-1]),
     )
 
 
@@ -102,6 +129,111 @@ def run_watchlist(
         result = backtest_symbol(history, params, cost_bps_per_side)
         results.append(dataclasses.replace(result, symbol=symbol))
     return results
+
+
+def _symbol_sectors(symbols: list[str]) -> dict[str, str]:
+    with session_scope() as session:
+        rows = session.query(Symbol.symbol, Symbol.sector).filter(Symbol.symbol.in_(symbols)).all()
+    return {symbol: (sector or "Unknown") for symbol, sector in rows}
+
+
+@dataclass(frozen=True)
+class SectorResult:
+    sector: str
+    n_symbols: int
+    median_net_return: float
+    median_gross_return: float
+    median_sharpe: float
+    net_win_rate: float  # share of symbols with net_return > 0
+
+
+def sector_breakdown(
+    symbols: list[str] | None = None,
+    params: TrendParams | None = None,
+    cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
+) -> list[SectorResult]:
+    """Same backtest, grouped by GICS sector — where is the net loss concentrated?"""
+    results = run_watchlist(symbols, params, cost_bps_per_side)
+    sectors = _symbol_sectors([r.symbol for r in results])
+
+    by_sector: dict[str, list[BacktestResult]] = {}
+    for result in results:
+        sector = sectors.get(result.symbol, "Unknown")
+        by_sector.setdefault(sector, []).append(result)
+
+    out = []
+    for sector, rows in by_sector.items():
+        net_returns = [r.net_return for r in rows]
+        out.append(
+            SectorResult(
+                sector=sector,
+                n_symbols=len(rows),
+                median_net_return=_median(net_returns),
+                median_gross_return=_median([r.strategy_return for r in rows]),
+                median_sharpe=_median([r.sharpe for r in rows]),
+                net_win_rate=sum(1 for x in net_returns if x > 0) / len(net_returns),
+            )
+        )
+    return sorted(out, key=lambda s: s.median_net_return, reverse=True)
+
+
+@dataclass(frozen=True)
+class RegimeResult:
+    year: int
+    return_pct: float
+    avg_names_long: float
+    trading_days: int
+
+
+def regime_breakdown(
+    symbols: list[str] | None = None,
+    params: TrendParams | None = None,
+    cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
+) -> list[RegimeResult]:
+    """Year-by-year return of an equal-weighted book of whatever names are
+    currently long each day — not per-symbol totals, so it shows *when* the
+    rule made or lost money across the universe, not just which names.
+    """
+    symbols = symbols if symbols is not None else full_universe()
+    frames = []
+    for symbol in symbols:
+        history = load_price_history(symbol)
+        if history.empty:
+            continue
+        frames.append(_daily_returns(history, params, cost_bps_per_side))
+    if not frames:
+        return []
+
+    all_days = pd.concat(frames, ignore_index=True)
+    all_days["date"] = pd.to_datetime(all_days["date"])
+    long_days = all_days[all_days["position"]]
+
+    daily_book_return = long_days.groupby("date")["net_return"].mean()
+    daily_breadth = long_days.groupby("date")["net_return"].size()
+
+    full_index = pd.Index(sorted(all_days["date"].unique()))
+    daily_book_return = daily_book_return.reindex(full_index, fill_value=0.0)
+    daily_breadth = daily_breadth.reindex(full_index, fill_value=0)
+
+    out = []
+    for year, year_returns in daily_book_return.groupby(daily_book_return.index.year):
+        year_breadth = daily_breadth.loc[year_returns.index]
+        out.append(
+            RegimeResult(
+                year=int(year),
+                return_pct=float((1 + year_returns).prod() - 1),
+                avg_names_long=float(year_breadth.mean()),
+                trading_days=len(year_returns),
+            )
+        )
+    return out
+
+
+def _median(values: list[float]) -> float:
+    ordered = sorted(values)
+    n = len(ordered)
+    mid = n // 2
+    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
 
 
 # Named parameter sets for side-by-side comparison, not just the current default.

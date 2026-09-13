@@ -6,6 +6,8 @@ uv run python -m quantis.signals --backtest --cost-bps 5
 uv run python -m quantis.signals --compare
 uv run python -m quantis.signals --compare --detail
 uv run python -m quantis.signals --persist
+uv run python -m quantis.signals --sectors
+uv run python -m quantis.signals --regime
 """
 
 from __future__ import annotations
@@ -13,7 +15,14 @@ from __future__ import annotations
 import argparse
 import math
 
-from quantis.signals.backtest import BacktestResult, compare_variants, run_watchlist
+from quantis.signals.backtest import (
+    BacktestResult,
+    _median,
+    compare_variants,
+    regime_breakdown,
+    run_watchlist,
+    sector_breakdown,
+)
 from quantis.signals.engine import latest_signals, persist_latest_signals
 
 _ROW = (
@@ -108,11 +117,23 @@ def _print_compare(detail: bool = False, cost_bps: float = 10.0) -> None:
             print()
 
 
-def _median(values: list[float]) -> float:
-    ordered = sorted(values)
-    n = len(ordered)
-    mid = n // 2
-    return ordered[mid] if n % 2 else (ordered[mid - 1] + ordered[mid]) / 2
+def _print_sectors(cost_bps: float) -> None:
+    print(f"cost model: {cost_bps:.1f} bps per side\n")
+    print(
+        f"{'sector':<26}{'n':>5}{'net win%':>10}{'med net':>11}{'med gross':>11}{'med sharpe':>12}"
+    )
+    for s in sector_breakdown(cost_bps_per_side=cost_bps):
+        print(
+            f"{s.sector:<26}{s.n_symbols:>5}{s.net_win_rate:>9.0%} "
+            f"{s.median_net_return:>10.1%} {s.median_gross_return:>10.1%} {s.median_sharpe:>11.2f}"
+        )
+
+
+def _print_regime(cost_bps: float) -> None:
+    print(f"cost model: {cost_bps:.1f} bps per side (equal-weighted book of long names each day)\n")
+    print(f"{'year':<6}{'return':>10}{'avg # long':>12}{'trading days':>14}")
+    for r in regime_breakdown(cost_bps_per_side=cost_bps):
+        print(f"{r.year:<6}{r.return_pct:>9.1%} {r.avg_names_long:>11.1f} {r.trading_days:>14}")
 
 
 if __name__ == "__main__":
@@ -128,6 +149,14 @@ if __name__ == "__main__":
         "--persist", action="store_true", help="write latest signals to the signals table"
     )
     parser.add_argument(
+        "--sectors", action="store_true", help="backtest results grouped by GICS sector"
+    )
+    parser.add_argument(
+        "--regime",
+        action="store_true",
+        help="year-by-year return of an equal-weighted book of currently-long names",
+    )
+    parser.add_argument(
         "--cost-bps",
         type=float,
         default=10.0,
@@ -139,6 +168,10 @@ if __name__ == "__main__":
         _print_compare(detail=args.detail, cost_bps=args.cost_bps)
     elif args.backtest:
         _print_backtest(cost_bps=args.cost_bps)
+    elif args.sectors:
+        _print_sectors(cost_bps=args.cost_bps)
+    elif args.regime:
+        _print_regime(cost_bps=args.cost_bps)
     elif args.persist:
         n = persist_latest_signals()
         print(f"wrote {n} signal rows")

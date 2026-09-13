@@ -174,6 +174,30 @@ rationale and the parameter comparison that picked these defaults.
   money under every variant tested, including versus their own (weak/negative)
   buy-and-hold. Expected for a trend-follower — it has nothing to say about a name with
   no trend to follow — but worth stating plainly rather than only reporting the median.
+- **The net-loss median is heavily sector-concentrated, not spread evenly.** Grouping
+  the same full-universe backtest by GICS sector (`uv run python -m quantis.signals
+  --sectors`): Energy (median net +49.1%, 90% of names net-positive) and Information
+  Technology (+15.4%, 53% positive) carry the rule; Health Care (-19.9%, 22% positive),
+  Real Estate (-23.3%, 17% positive), and Consumer Staples (-18.8%, 26% positive) drag
+  it down hardest. Defensive/low-beta sectors chop sideways or move on rate-driven
+  regime shifts rather than idiosyncratic trends, which an SMA crossover has nothing to
+  grab onto — this is closer to "the rule doesn't apply to these sectors" than "the
+  rule is broken."
+- **Per-symbol median return and diversified daily-book return tell different
+  stories.** `uv run python -m quantis.signals --regime` computes the actual
+  day-by-day return of an equal-weighted book of whatever names are currently long
+  (not a per-symbol total): that book is net-positive in every year from 2020 through
+  2026 except 2022 (-10.1%, the growth/tech rate-hike drawdown — consistent with the
+  IT/growth sector concentration above). Yet the per-symbol median net return over the
+  same period is negative. Both are true and not contradictory: cross-sectional
+  diversification across many concurrently-long names smooths out the whipsaw/cost
+  drag that dominates any single undiversified symbol, while the "median symbol"
+  statistic is pulled down by sectors with no exploitable trend. This repo currently
+  trades each symbol independently with no portfolio construction, so it captures
+  neither the diversification benefit nor avoids the median symbol's drag — a real
+  book (equal-weight or otherwise, across currently-long names) would likely look
+  meaningfully better than the per-symbol figures suggest, and that gap is exactly
+  what a portfolio-construction layer (still absent — see below) would be for.
 - **Long/flat only, no shorting, no position sizing beyond equal-weight.** The
   Positions screen's "book" is illustrative (every currently-long name at 1/N), not a
   constructed portfolio.

@@ -137,7 +137,7 @@ uv sync --group data --group orchestration --group api --group app --group dev
 cp .env.example .env          # fill PGPASSWORD and Alpaca paper keys
 
 # 3. Create the dedicated database, then validate the environment
-uv run python scripts/init_db.py
+uv run alembic upgrade head
 uv run python scripts/env_check.py    # imports + Postgres ping → "ENV GATE: PASS"
 
 # 4. Ingest daily bars for the S&P 500
@@ -188,7 +188,7 @@ uv run pre-commit run --all-files   # same suite locally
 | **black** | Python formatting (100-char lines) |
 | **flake8** | pycodestyle + pyflakes |
 | **ruff** | flake8-equivalent rules plus isort, pyupgrade, bugbear |
-| **mypy** | static types on `src/`, `tests/`, `scripts/` |
+| **mypy** | static types on `src/`, `tests/`, `scripts/`, `alembic/` |
 | **ESLint** | Next.js / TypeScript in `frontend/` |
 | **pytest** | unit suite (CI; DB ping skips without `PGPASSWORD`) |
 
@@ -229,7 +229,8 @@ src/quantis/
 ├── orchestration/      # Prefect ingest/signal/portfolio/rebalance flows (with start.py)
 └── api/               # FastAPI backend
 frontend/              # Next.js dashboard
-scripts/               # start.py, env_check, init_db, ingest_fundamentals_edgar
+scripts/               # start.py, env_check, ingest_fundamentals_edgar
+alembic/               # schema migrations (uv run alembic upgrade head)
 tests/                 # env, signals, orchestration, API
 docs/                  # PLAN · PROGRESS · LIMITATIONS
 ```

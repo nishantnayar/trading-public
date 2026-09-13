@@ -42,9 +42,9 @@ repos:
     rev: v2.3.1
     hooks:
       - id: mypy
-        args: [src, tests, scripts]
+        args: [src, tests, scripts, alembic]
         pass_filenames: false
-        additional_dependencies: []
+        additional_dependencies: ["alembic>=1.13", "sqlalchemy>=2.0"]
 
   - repo: local
     hooks:

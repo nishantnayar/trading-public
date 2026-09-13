@@ -289,9 +289,15 @@ rationale and the parameter comparison that picked these defaults.
 
 ## Infrastructure
 
-- **No Alembic migrations** — schema is created with `Base.metadata.create_all()` via
-  `scripts/init_db.py`. Alembic is a declared dependency but unconfigured; fine while
-  tables are additive, needs doing before any destructive column change.
+- **Alembic migrations** — schema changes go through `uv run alembic revision
+  --autogenerate -m "..."` then `uv run alembic upgrade head`, replacing the old
+  pattern of manually dropping tables and re-running `Base.metadata.create_all()`
+  (hit three times before this was fixed). `alembic/versions/..._baseline.py` is the
+  first revision; it also drops `predictions`/`positions`/`model_runs`, physical
+  tables left over from the deleted LightGBM pipeline that `create_all()` had been
+  silently leaving in place. Autogenerate still needs a human to review the diff
+  before applying it — it can miss things like column renames (sees them as
+  drop+add) or non-schema data migrations.
 - **`ingest_runs` is written** by `ingest-daily-bars` and `recompute-signals`.
   `scripts/start.py` starts the Prefect server and the cron runner together.
   `--skip schedules` disables cron.

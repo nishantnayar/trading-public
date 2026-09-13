@@ -49,22 +49,5 @@ export type SignalRow = {
   computed_at: string | null;
 };
 
-export type ModelSnapshot = {
-  as_of: string | null;
-  oof_source: string;
-  construction: string;
-  n_dates: number | null;
-  n_symbols: number | null;
-  rank_ic: number | null;
-  icir: number | null;
-  ic_hit_rate: number | null;
-  q_spread: number | null;
-  sharpe_10bps: number | null;
-  turnover: number | null;
-  break_even_bps: number | null;
-  shap: { feature: string; gain: number; family: string }[];
-  params: Record<string, string | number>;
-};
-
 /** IEX free-tier fact, surfaced in the UI (not returned by /coverage). */
 export const FEED_LABEL = "IEX · adjusted";

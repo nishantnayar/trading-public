@@ -80,50 +80,16 @@ export const COST_META: { label: string; value: string; tone?: Tone }[] = [
   { label: "total cost", value: "$310 · 2.4 bps" },
 ];
 
-export const MODEL_KPIS = [
-  { label: "CV RANK IC", value: "0.058", delta: "+0.004", sub: "vs v13", up: true },
-  { label: "ICIR", value: "0.94", delta: "+0.06", sub: "vs v13", up: true },
-  { label: "HIT RATE", value: "54.2%", delta: "-0.3", sub: "vs v13", up: false },
-  { label: "Q5–Q1 SPREAD", value: "11.3%", delta: "+0.8", sub: "net of cost", up: true },
-  { label: "FEATURES", value: "42", delta: "", sub: "5 families" },
-] as const;
-
-export const SHAP = [
-  { name: "mom_12_1", family: "momentum", value: 0.184 },
-  { name: "earnings_yield", family: "value", value: 0.148 },
-  { name: "vol_60d", family: "volatility", value: 0.122 },
-  { name: "roe_ttm", family: "quality", value: 0.106 },
-  { name: "rsi_14", family: "technical", value: 0.088 },
-  { name: "accruals", family: "quality", value: 0.074 },
-  { name: "size_ln_mcap", family: "size", value: 0.058 },
-  { name: "news_sentiment", family: "alt", value: 0.048 },
-] as const;
-
-export const TRAIN_CONFIG: [string, string][] = [
-  ["objective", "lambdarank"],
-  ["label", "xs z-score fwd 5d"],
-  ["n_estimators", "1200"],
-  ["learning_rate", "0.021"],
-  ["num_leaves", "63"],
-  ["train window", "2015–2024"],
-  ["cv", "purged 6-fold · 5d embargo"],
-  ["retrain", "weekly · Prefect"],
-  ["registry", "MLflow · Prod"],
-];
-
 export const FLOWS = [
-  { label: "daily_ingest", state: "HEALTHY", ok: true, schedule: "17:10 CT · weekdays", last: "2026-09-04 17:12", rows: "3,918", phase: "live" },
-  { label: "feature_build", state: "NOT SCHEDULED", ok: false, schedule: "—", last: "—", rows: "—", phase: "Phase 3" },
-  { label: "weekly_retrain", state: "NOT SCHEDULED", ok: false, schedule: "—", last: "—", rows: "—", phase: "Phase 4" },
-  { label: "rebalance", state: "NOT SCHEDULED", ok: false, schedule: "—", last: "—", rows: "—", phase: "Phase 8" },
+  { label: "daily-ingest", state: "HEALTHY", ok: true, schedule: "17:15 CT · weekdays", last: "2026-09-04 17:12", rows: "3,918", phase: "live" },
+  { label: "daily-signals", state: "HEALTHY", ok: true, schedule: "17:30 CT · weekdays", last: "2026-09-12 17:31", rows: "22", phase: "live" },
 ] as const;
 
 export const NAV = [
   { key: "overview", hot: "F1", label: "Overview", href: "/" },
   { key: "signals", hot: "F2", label: "Signals", href: "/signals" },
   { key: "positions", hot: "F3", label: "Positions", href: "/positions" },
-  { key: "model", hot: "F4", label: "Model", href: "/model" },
-  { key: "monitoring", hot: "F5", label: "Monitoring", href: "/monitoring" },
+  { key: "monitoring", hot: "F4", label: "Monitoring", href: "/monitoring" },
 ] as const;
 
-export const PROVENANCE = "ILLUSTRATIVE FIGURES · PAPER ONLY · PHASE 2 OF 11";
+export const PROVENANCE = "ILLUSTRATIVE FIGURES · PAPER ONLY · SIGNAL v1";

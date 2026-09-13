@@ -27,7 +27,11 @@ from prefect.flows import EntrypointType
 from prefect.utilities.asyncutils import sync_compatible
 
 from quantis.config import _REPO_ROOT, get_settings
-from quantis.orchestration.flows import ingest_incremental, recompute_signals
+from quantis.orchestration.flows import (
+    ingest_incremental,
+    recompute_portfolio,
+    recompute_signals,
+)
 
 
 def pin_quantis_prefect_env() -> str:
@@ -117,7 +121,16 @@ def apply_deployments(pool: str) -> None:
         entrypoint_type=EntrypointType.MODULE_PATH,
         job_variables=job_variables,
     )
-    for deployment in (ingest, signals):
+    portfolio = recompute_portfolio.to_deployment(
+        name="daily-portfolio",
+        cron="35 17 * * 1-5",  # 5 min after daily-signals
+        tags=["quantis", "portfolio"],
+        description="Re-backtest the default portfolio construction and persist it.",
+        work_pool_name=pool,
+        entrypoint_type=EntrypointType.MODULE_PATH,
+        job_variables=job_variables,
+    )
+    for deployment in (ingest, signals, portfolio):
         deployment.apply()  # type: ignore[attr-defined]
         logger.info(
             "applied {}/{} on pool {}",

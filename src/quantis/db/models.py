@@ -170,6 +170,33 @@ class IngestRun(Base):
     detail: Mapped[str | None] = mapped_column(String(512))
 
 
+class PortfolioSnapshot(Base):
+    """Latest full-period backtest of the portfolio construction
+    (quantis.signals.portfolio) - equal-weight, sector-capped, reallocated by
+    default. One row, replaced on every run - a snapshot, not history.
+    """
+
+    __tablename__ = "portfolio_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    period_start: Mapped[dt.date | None] = mapped_column(Date)
+    period_end: Mapped[dt.date | None] = mapped_column(Date)
+    trading_days: Mapped[int] = mapped_column(BigInteger)
+    total_return: Mapped[float] = mapped_column(Numeric(18, 6))
+    cagr: Mapped[float] = mapped_column(Numeric(18, 6))
+    ann_vol: Mapped[float] = mapped_column(Numeric(18, 6))
+    sharpe: Mapped[float] = mapped_column(Numeric(18, 6))
+    max_drawdown: Mapped[float] = mapped_column(Numeric(18, 6))
+    avg_names_long: Mapped[float] = mapped_column(Numeric(18, 4))
+    avg_exposure: Mapped[float] = mapped_column(Numeric(18, 6))
+    annualized_turnover: Mapped[float] = mapped_column(Numeric(18, 4))
+    max_sector_weight: Mapped[float | None] = mapped_column(Numeric(18, 6))
+    reallocated: Mapped[bool] = mapped_column(Boolean, default=True)
+    computed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
 class Signal(Base):
     """Latest trend-rule signal for one watchlist symbol (quantis.signals).
 

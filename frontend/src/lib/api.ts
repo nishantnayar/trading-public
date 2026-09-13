@@ -49,5 +49,23 @@ export type SignalRow = {
   computed_at: string | null;
 };
 
+/** Latest full-period backtest of the portfolio construction (quantis.signals.portfolio). */
+export type PortfolioSnapshot = {
+  period_start: string | null;
+  period_end: string | null;
+  trading_days: number;
+  total_return: number;
+  cagr: number;
+  ann_vol: number;
+  sharpe: number;
+  max_drawdown: number;
+  avg_names_long: number;
+  avg_exposure: number;
+  annualized_turnover: number;
+  max_sector_weight: number | null;
+  reallocated: boolean;
+  computed_at: string | null;
+};
+
 /** IEX free-tier fact, surfaced in the UI (not returned by /coverage). */
 export const FEED_LABEL = "IEX · adjusted";

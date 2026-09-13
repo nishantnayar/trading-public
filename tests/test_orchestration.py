@@ -36,6 +36,20 @@ def test_recompute_signals_records_rows_written(monkeypatch: pytest.MonkeyPatch)
     assert finished == {"status": "success", "rows_written": 22}
 
 
+def test_recompute_portfolio_records_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    called: dict[str, object] = {}
+    monkeypatch.setattr(flows, "persist_portfolio_summary", lambda: called.setdefault("ran", True))
+    monkeypatch.setattr(flows, "start_ingest_run", lambda *a, **k: 1)
+    finished: dict[str, object] = {}
+    monkeypatch.setattr(
+        flows, "finish_ingest_run", lambda run_id, **kwargs: finished.update(kwargs)
+    )
+    result = flows.recompute_portfolio.fn()
+    assert result == {"status": "ok"}
+    assert called == {"ran": True}
+    assert finished == {"status": "success"}
+
+
 def test_pin_quantis_prefect_env_points_at_project_server(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PREFECT_API_URL", raising=False)
     monkeypatch.delenv("PREFECT_HOME", raising=False)

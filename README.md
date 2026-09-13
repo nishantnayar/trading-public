@@ -46,7 +46,7 @@ signal side from a simpler, fully-rule-based baseline first — see
 | **Signal** | Rule-based trend-follower (`quantis.signals`) over the full ~503-name active universe — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
 | **Backtest** | Per-symbol backtest with a flat-bps cost model + sector/regime breakdowns + a 3-variant debounce comparison |
 | **Portfolio** | Equal-weight book, 15% GICS sector cap with water-filling reallocation, rebalanced daily (`quantis.signals.portfolio`) |
-| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute) |
+| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute, then portfolio backtest recompute) |
 | **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Monitoring |
 
 The **Model** screen (a holdover from the deleted ML pipeline) has been removed from
@@ -185,7 +185,7 @@ uv run python scripts/start.py
 | Overview `/` | Live — coverage, universe, sector mix, price chart |
 | Monitoring `/monitoring` | Live — bar coverage, ingest-run audit |
 | Signals `/signals` | Live — current trend rule signal per universe symbol |
-| Positions `/positions` | Live — equal-weighted illustrative book of currently-long names |
+| Positions `/positions` | Live — illustrative equal-weight book + the real backtested portfolio construction's performance (CAGR, Sharpe, drawdown, exposure, turnover) |
 
 See [`frontend/README.md`](frontend/README.md).
 

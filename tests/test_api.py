@@ -15,3 +15,7 @@ def test_health() -> None:
 
 def test_signals_route_is_mounted() -> None:
     assert "/signals" in app.openapi()["paths"]
+
+
+def test_portfolio_route_is_mounted() -> None:
+    assert "/portfolio" in app.openapi()["paths"]

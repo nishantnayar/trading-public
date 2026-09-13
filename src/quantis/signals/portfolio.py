@@ -34,6 +34,8 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from quantis.db.engine import session_scope
+from quantis.db.models import PortfolioSnapshot
 from quantis.signals.backtest import (
     DEFAULT_COST_BPS_PER_SIDE,
     _annualized_sharpe,
@@ -243,3 +245,37 @@ def portfolio_summary(
         max_sector_weight=max_sector_weight,
         reallocated=reallocate,
     )
+
+
+def _parse_date(value: str) -> object | None:
+    return pd.to_datetime(value).date() if value else None
+
+
+def persist_portfolio_summary(result: PortfolioResult | None = None) -> None:
+    """Replace the single `portfolio_snapshots` row with `result` (or a fresh
+    `portfolio_summary()` using the defaults - see module docstring).
+
+    One row, not history: each call overwrites the prior snapshot, same
+    convention as `quantis.signals.engine.persist_latest_signals` uses for
+    `signals`.
+    """
+    result = result or portfolio_summary()
+    with session_scope() as session:
+        session.query(PortfolioSnapshot).delete()
+        session.add(
+            PortfolioSnapshot(
+                period_start=_parse_date(result.start),
+                period_end=_parse_date(result.end),
+                trading_days=result.trading_days,
+                total_return=result.total_return,
+                cagr=result.cagr,
+                ann_vol=result.ann_vol,
+                sharpe=result.sharpe,
+                max_drawdown=result.max_drawdown,
+                avg_names_long=result.avg_names_long,
+                avg_exposure=result.avg_exposure,
+                annualized_turnover=result.annualized_turnover,
+                max_sector_weight=result.max_sector_weight,
+                reallocated=result.reallocated,
+            )
+        )

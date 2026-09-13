@@ -20,6 +20,7 @@ from quantis.data.store import (
 )
 from quantis.data.universe import active_symbols, seed_symbols
 from quantis.signals.engine import persist_latest_signals
+from quantis.signals.portfolio import persist_portfolio_summary
 
 DEFAULT_START = dt.date(2016, 1, 1)  # Alpaca IEX history begins ~2016
 INGEST_OVERLAP_DAYS = 10
@@ -109,6 +110,25 @@ def recompute_signals() -> dict:
         finish_ingest_run(run_id, status="success", rows_written=n)
         logger.info("persisted {} signal rows", n)
         return {"rows_written": n}
+    except Exception as exc:
+        finish_ingest_run(run_id, status="failed", detail=str(exc))
+        raise
+
+
+@flow(name="recompute-portfolio")
+def recompute_portfolio() -> dict:
+    """Re-backtest the default portfolio construction and persist the snapshot.
+
+    Scheduled to run after `recompute-signals` — the backtest reads the same
+    daily bars, so ordering relative to signals doesn't matter, but keeping it
+    last avoids the two writing to `ingest_runs` in the same second.
+    """
+    run_id = start_ingest_run("recompute-portfolio")
+    try:
+        persist_portfolio_summary()
+        finish_ingest_run(run_id, status="success")
+        logger.info("persisted portfolio snapshot")
+        return {"status": "ok"}
     except Exception as exc:
         finish_ingest_run(run_id, status="failed", detail=str(exc))
         raise

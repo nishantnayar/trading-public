@@ -49,27 +49,67 @@ class PortfolioResult:
     annualized_turnover: float
     trading_days: int
     max_sector_weight: float | None = None
+    reallocated: bool = False
+
+
+def _water_fill_sector_weights(counts: pd.Series, cap: float) -> pd.Series:
+    """One day's final sector weights: proportional to each sector's share of
+    names, capped, with freed weight reallocated proportionally among
+    still-under-cap sectors until nothing is left over cap.
+
+    `counts` is sector -> number of long names in that sector (one day).
+    Standard iterative proportional capping ("water-filling"): propose
+    weights proportional to `counts` summing to whatever total remains
+    unallocated (1.0 initially); any sector over `cap` is pinned there and
+    removed from the pool; the remaining total is re-proposed among what's
+    left. Converges in at most `len(counts)` passes since each pass pins at
+    least one more sector. If every present sector is pinned at the cap
+    before the total is fully allocated (e.g. more sectors present than
+    `1/cap` can hold at cap - overlapping ties aside), the leftover is
+    genuinely un-investable under the constraint and stays as cash, not an
+    error.
+    """
+    raw_share = counts / counts.sum()
+    remaining = set(counts.index)
+    weights: dict[str, float] = {}
+    total_to_allocate = 1.0
+    while remaining:
+        share_sum = raw_share.loc[list(remaining)].sum()
+        proposed = {s: total_to_allocate * raw_share[s] / share_sum for s in remaining}
+        over_cap = [s for s in remaining if proposed[s] > cap + 1e-12]
+        if not over_cap:
+            weights.update(proposed)
+            break
+        for s in over_cap:
+            weights[s] = cap
+            total_to_allocate -= cap
+            remaining.discard(s)
+    return pd.Series(weights)
 
 
 def _capped_weights(
     all_days: pd.DataFrame,
     long_days: pd.DataFrame,
     max_sector_weight: float | None,
+    reallocate: bool = False,
 ) -> pd.Series:
     """Per-(date, symbol) portfolio weight, equal-weighted within the day's
     long names and capped by GICS sector.
 
     Uncapped: weight = 1 / (names long that day).
 
-    Capped: any sector whose uncapped total would exceed `max_sector_weight`
-    is scaled down to exactly the cap; its names split that fixed share
-    equally among themselves. The freed weight is *not* reallocated to other
-    sectors (a real allocator might use the freed capital elsewhere, or hold
-    cash) - so a capped day is a smaller, less-than-fully-invested book, not a
-    fully-invested one with different proportions. That's a real
-    simplification, not a bug: reallocating the freed weight would need an
-    iterative water-filling pass across sectors (capping one can push another
-    over), which this deliberately does not do. See docs/LIMITATIONS.md.
+    Capped, `reallocate=False` (the default): any sector whose uncapped total
+    would exceed `max_sector_weight` is scaled down to exactly the cap; its
+    names split that fixed share equally among themselves. The freed weight
+    is *not* reallocated to other sectors - a capped day is a smaller,
+    less-than-fully-invested book, not a fully-invested one with different
+    proportions.
+
+    Capped, `reallocate=True`: freed weight from over-cap sectors is instead
+    redistributed proportionally among still-under-cap sectors, iterating
+    until no sector exceeds the cap (`_water_fill_sector_weights`) - a real
+    allocator's likely behavior, at the cost of needing that iterative pass
+    per day instead of one vectorized scale-down. See docs/LIMITATIONS.md.
     """
     equal_weight = 1.0 / long_days.groupby("date")["symbol"].transform("size")
     if max_sector_weight is None:
@@ -77,9 +117,21 @@ def _capped_weights(
 
     sectors = _symbol_sectors(list(all_days["symbol"].unique()))
     sector = long_days["symbol"].map(sectors).fillna("Unknown")
-    sector_total = equal_weight.groupby([long_days["date"], sector]).transform("sum")
-    scale = np.where(sector_total > max_sector_weight, max_sector_weight / sector_total, 1.0)
-    return equal_weight * scale
+
+    if not reallocate:
+        sector_total = equal_weight.groupby([long_days["date"], sector]).transform("sum")
+        scale = np.where(sector_total > max_sector_weight, max_sector_weight / sector_total, 1.0)
+        return equal_weight * scale
+
+    counts = long_days.assign(sector=sector).groupby(["date", "sector"]).size()
+    sector_weight_by_day: dict[object, float] = {}
+    for date, day_counts in counts.groupby(level=0):
+        day_counts = day_counts.droplevel(0)
+        for s, w in _water_fill_sector_weights(day_counts, max_sector_weight).items():
+            sector_weight_by_day[(date, s)] = w / day_counts[s]
+
+    keys = list(zip(long_days["date"], sector, strict=True))
+    return pd.Series([sector_weight_by_day[k] for k in keys], index=long_days.index)
 
 
 def daily_book_returns(
@@ -87,13 +139,14 @@ def daily_book_returns(
     params: TrendParams | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
     max_sector_weight: float | None = None,
+    reallocate: bool = False,
 ) -> pd.DataFrame:
     """One row per trading day: weighted net/gross return of every
     currently-long name that day (equal-weight, or sector-capped if
     `max_sector_weight` is set — see `_capped_weights`), breadth (`n_long`),
-    invested exposure that day (`exposure`, 1.0 unless sector-capped), and how
-    many names changed position (`n_trades`). A flat day (nothing long) earns
-    0, not NaN.
+    invested exposure that day (`exposure`, 1.0 unless sector-capped without
+    reallocation), and how many names changed position (`n_trades`). A flat
+    day (nothing long) earns 0, not NaN.
     """
     all_days = universe_daily_frame(symbols, params, cost_bps_per_side)
     if all_days.empty:
@@ -104,7 +157,7 @@ def daily_book_returns(
     long_days = all_days[all_days["position"]].copy()
     full_index = pd.Index(sorted(all_days["date"].unique()))
 
-    weight = _capped_weights(all_days, long_days, max_sector_weight)
+    weight = _capped_weights(all_days, long_days, max_sector_weight, reallocate)
     weighted_net = (weight * long_days["net_return"]).groupby(long_days["date"]).sum()
     weighted_gross = (weight * long_days["gross_return"]).groupby(long_days["date"]).sum()
     exposure = weight.groupby(long_days["date"]).sum()
@@ -132,11 +185,14 @@ def portfolio_summary(
     params: TrendParams | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
     max_sector_weight: float | None = None,
+    reallocate: bool = False,
 ) -> PortfolioResult:
     """Full-period backtest of the book (see module docstring). Pass
     `max_sector_weight` (e.g. 0.25) to cap any one GICS sector's daily weight;
-    omit for pure equal-weight."""
-    daily = daily_book_returns(symbols, params, cost_bps_per_side, max_sector_weight)
+    omit for pure equal-weight. `reallocate=True` redistributes a capped
+    sector's freed weight to under-cap sectors instead of leaving it
+    uninvested - see `_capped_weights`."""
+    daily = daily_book_returns(symbols, params, cost_bps_per_side, max_sector_weight, reallocate)
     net_return = daily["net_return"]
     n_days = len(daily)
     n_years = n_days / 252
@@ -175,4 +231,5 @@ def portfolio_summary(
         annualized_turnover=annualized_turnover,
         trading_days=n_days,
         max_sector_weight=max_sector_weight,
+        reallocated=reallocate,
     )

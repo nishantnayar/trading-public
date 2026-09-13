@@ -200,13 +200,22 @@ rationale and the parameter comparison that picked these defaults.
   `max_sector_weight` (`uv run python -m quantis.signals --portfolio --sector-cap
   0.25`). At a 25% cap, over the same full history: **max drawdown improves from
   -37.0% to -20.4%, Sharpe improves from 0.59 to 0.64**, at a small cost to CAGR
-  (8.2% → 7.9%) and average exposure (78.3% → 72.3%). The cap works by scaling down
-  an over-cap sector's names to exactly the cap and **not reallocating the freed
-  weight elsewhere** — a capped day is a smaller, less-than-fully-invested book, not
-  a fully-invested one with different proportions. A real allocator might reinvest
-  that freed capital in under-cap sectors instead (an iterative water-filling pass,
-  since capping one sector can push another over); this deliberately doesn't, so the
-  improvement shown is a conservative floor, not the best a sector cap could do.
+  (8.2% → 7.9%) and average exposure (78.3% → 72.3%). By default the cap works by
+  scaling down an over-cap sector's names to exactly the cap and **not reallocating
+  the freed weight elsewhere** — a capped day is a smaller, less-invested book, not a
+  fully-invested one with different proportions.
+- **Reallocating the freed weight (`reallocate=True` / `--reallocate`) helps a lot
+  at a tight cap, barely at all at a loose one — both are real, verified results, not
+  a bug.** Reallocation redistributes an over-cap sector's freed weight to
+  under-cap sectors via iterative proportional capping ("water-filling":
+  `_water_fill_sector_weights`), rather than leaving it as cash. At the 25% cap
+  above, reallocating changes almost nothing (avg exposure 72.3% → 72.4%, every
+  other metric identical to one decimal) — with 11 GICS sectors and ~175 names
+  typically long, a 25% cap rarely binds hard enough to leave much to redistribute.
+  At a tighter **15% cap**, where several sectors bind simultaneously, it matters
+  much more: avg exposure 66.8% → 71.6%, CAGR 7.0% → 7.7%, Sharpe 0.62 → 0.65. Verify
+  either result yourself: `uv run python -m quantis.signals --portfolio --sector-cap
+  0.15 --reallocate`.
 - **No per-name cap, no volatility targeting.** Within a sector (capped or not),
   every long name still gets an equal 1/N-of-sector share — no single-name limit, no
   vol-scaling of position size.

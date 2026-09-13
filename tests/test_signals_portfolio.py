@@ -8,7 +8,11 @@ import pytest
 
 import quantis.signals.backtest as backtest_module
 import quantis.signals.portfolio as portfolio_module
-from quantis.signals.portfolio import daily_book_returns, portfolio_summary
+from quantis.signals.portfolio import (
+    _water_fill_sector_weights,
+    daily_book_returns,
+    portfolio_summary,
+)
 from quantis.signals.rules import TrendParams
 
 
@@ -129,3 +133,58 @@ def test_sector_cap_lowers_avg_exposure_in_portfolio_summary(
     assert capped.avg_exposure == pytest.approx(uncapped.avg_exposure * 0.5)
     assert capped.max_sector_weight == 0.5
     assert uncapped.max_sector_weight is None
+
+
+def test_water_fill_reallocates_freed_weight_to_under_cap_sectors() -> None:
+    # 3 Tech, 1 Energy, 1 Health names; raw shares 0.6/0.2/0.2. Tech is over a
+    # 0.4 cap, pinned there; the freed 0.2 splits proportionally between the
+    # two untouched sectors (each already at 0.2, equal raw shares) -> 0.3 each.
+    counts = pd.Series({"Tech": 3, "Energy": 1, "Health": 1})
+    weights = _water_fill_sector_weights(counts, cap=0.4)
+    assert weights["Tech"] == pytest.approx(0.4)
+    assert weights["Energy"] == pytest.approx(0.3)
+    assert weights["Health"] == pytest.approx(0.3)
+    assert weights.sum() == pytest.approx(1.0)  # fully reallocated, nothing left as cash
+
+
+def test_water_fill_leaves_cash_when_every_sector_is_pinned() -> None:
+    # Two equal sectors, cap 0.4 each -> even fully allocated, 0.4+0.4 = 0.8;
+    # the remaining 0.2 has nowhere to go under the constraint.
+    counts = pd.Series({"Tech": 1, "Energy": 1})
+    weights = _water_fill_sector_weights(counts, cap=0.4)
+    assert weights["Tech"] == pytest.approx(0.4)
+    assert weights["Energy"] == pytest.approx(0.4)
+    assert weights.sum() == pytest.approx(0.8)
+
+
+def test_reallocation_achieves_full_exposure_where_non_reallocation_does_not(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["A", "B", "C", "D", "E"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+    monkeypatch.setattr(
+        portfolio_module,
+        "_symbol_sectors",
+        lambda symbols: {"A": "Tech", "B": "Tech", "C": "Tech", "D": "Energy", "E": "Health"},
+    )
+
+    not_reallocated = daily_book_returns(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=0.4, reallocate=False
+    )
+    reallocated = daily_book_returns(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=0.4, reallocate=True
+    )
+    long_days_a = not_reallocated[not_reallocated["n_long"] > 0]
+    long_days_b = reallocated[reallocated["n_long"] > 0]
+    assert not long_days_a.empty and not long_days_b.empty
+    assert np.allclose(long_days_a["exposure"], 0.8)  # 0.4 Tech + 0.2 Energy + 0.2 Health
+    assert np.allclose(long_days_b["exposure"], 1.0)  # freed Tech weight reallocated
+
+
+def test_portfolio_summary_records_reallocated_flag(monkeypatch: pytest.MonkeyPatch) -> None:
+    _three_identical_tech_names(monkeypatch)
+    result = portfolio_summary(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=0.5, reallocate=True
+    )
+    assert result.reallocated is True

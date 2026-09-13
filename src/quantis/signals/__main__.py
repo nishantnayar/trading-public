@@ -10,6 +10,7 @@ uv run python -m quantis.signals --sectors
 uv run python -m quantis.signals --regime
 uv run python -m quantis.signals --portfolio
 uv run python -m quantis.signals --portfolio --sector-cap 0.25
+uv run python -m quantis.signals --portfolio --sector-cap 0.25 --reallocate
 """
 
 from __future__ import annotations
@@ -150,7 +151,7 @@ def _print_one_portfolio(r: PortfolioResult) -> None:
     print(f"{'annualized turnover':<20}{r.annualized_turnover:>9.1f}x")
 
 
-def _print_portfolio(cost_bps: float, sector_cap: float | None) -> None:
+def _print_portfolio(cost_bps: float, sector_cap: float | None, reallocate: bool) -> None:
     uncapped = portfolio_summary(cost_bps_per_side=cost_bps)
     print(f"period: {uncapped.start} .. {uncapped.end}  ({uncapped.trading_days} trading days)")
     print(f"cost model: {cost_bps:.1f} bps per side\n")
@@ -160,8 +161,15 @@ def _print_portfolio(cost_bps: float, sector_cap: float | None) -> None:
 
     if sector_cap is not None:
         capped = portfolio_summary(cost_bps_per_side=cost_bps, max_sector_weight=sector_cap)
-        print(f"\n-- equal-weight, {sector_cap:.0%} sector cap --")
+        print(f"\n-- equal-weight, {sector_cap:.0%} sector cap, not reallocated --")
         _print_one_portfolio(capped)
+
+        if reallocate:
+            reallocated = portfolio_summary(
+                cost_bps_per_side=cost_bps, max_sector_weight=sector_cap, reallocate=True
+            )
+            print(f"\n-- equal-weight, {sector_cap:.0%} sector cap, reallocated --")
+            _print_one_portfolio(reallocated)
 
 
 if __name__ == "__main__":
@@ -197,6 +205,12 @@ if __name__ == "__main__":
         help="with --portfolio, also show a run capped at this sector weight (e.g. 0.25)",
     )
     parser.add_argument(
+        "--reallocate",
+        action="store_true",
+        help="with --portfolio --sector-cap, also show a run reallocating freed weight "
+        "to under-cap sectors instead of leaving it uninvested",
+    )
+    parser.add_argument(
         "--cost-bps",
         type=float,
         default=10.0,
@@ -213,7 +227,9 @@ if __name__ == "__main__":
     elif args.regime:
         _print_regime(cost_bps=args.cost_bps)
     elif args.portfolio:
-        _print_portfolio(cost_bps=args.cost_bps, sector_cap=args.sector_cap)
+        _print_portfolio(
+            cost_bps=args.cost_bps, sector_cap=args.sector_cap, reallocate=args.reallocate
+        )
     elif args.persist:
         n = persist_latest_signals()
         print(f"wrote {n} signal rows")

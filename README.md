@@ -66,7 +66,10 @@ per-symbol tuning — backtesting an **equal-weight book of every currently-long
 view was hiding. A 25% sector cap (`--sector-cap 0.25`), which scales an over-cap
 sector down without reallocating the freed weight, cuts max drawdown to **-20.4%**
 and improves Sharpe to **0.64** at a small cost in CAGR (7.9%) — the concentration
-risk Energy/Tech dominance implied was real. See
+risk Energy/Tech dominance implied was real. Reallocating that freed weight to
+under-cap sectors instead of leaving it uninvested (`--reallocate`, water-filling)
+barely matters at 25% (few sectors bind that hard) but clearly helps at a tighter
+15% cap — CAGR 7.0%→7.7%, Sharpe 0.62→0.65, avg exposure 66.8%→71.6%. See
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the full, honest caveats (no
 per-name cap, no vol targeting, no shorting, no execution).
 

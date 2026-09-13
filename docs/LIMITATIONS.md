@@ -183,26 +183,33 @@ rationale and the parameter comparison that picked these defaults.
   regime shifts rather than idiosyncratic trends, which an SMA crossover has nothing to
   grab onto — this is closer to "the rule doesn't apply to these sectors" than "the
   rule is broken."
-- **Per-symbol median return and diversified daily-book return tell different
-  stories.** `uv run python -m quantis.signals --regime` computes the actual
-  day-by-day return of an equal-weighted book of whatever names are currently long
-  (not a per-symbol total): that book is net-positive in every year from 2020 through
-  2026 except 2022 (-10.1%, the growth/tech rate-hike drawdown — consistent with the
-  IT/growth sector concentration above). Yet the per-symbol median net return over the
-  same period is negative. Both are true and not contradictory: cross-sectional
+- **Per-symbol median return and the portfolio-level backtest tell different
+  stories, and the portfolio is the better number.** `quantis.signals.portfolio`
+  backtests an equal-weight book of every currently-long name, rebalanced daily
+  (`uv run python -m quantis.signals --portfolio`). Over the full ingested history
+  (2017-11-15 → 2026-09-10, 1,798 trading days), that book returns **75.1% total /
+  8.2% CAGR, Sharpe 0.59, max drawdown -37.0%**, at ~25.2x annualized turnover —
+  materially better than the negative per-symbol median net return. Cross-sectional
   diversification across many concurrently-long names smooths out the whipsaw/cost
-  drag that dominates any single undiversified symbol, while the "median symbol"
-  statistic is pulled down by sectors with no exploitable trend. This repo currently
-  trades each symbol independently with no portfolio construction, so it captures
-  neither the diversification benefit nor avoids the median symbol's drag — a real
-  book (equal-weight or otherwise, across currently-long names) would likely look
-  meaningfully better than the per-symbol figures suggest, and that gap is exactly
-  what a portfolio-construction layer (still absent — see below) would be for.
-- **Long/flat only, no shorting, no position sizing beyond equal-weight.** The
-  Positions screen's "book" is illustrative (every currently-long name at 1/N), not a
-  constructed portfolio.
+  drag that dominates any single undiversified symbol, while the per-symbol median is
+  pulled down by sectors with no exploitable trend (see above). Prior to this, the
+  repo traded each symbol independently with no portfolio construction, so it
+  captured neither the diversification benefit nor avoided the median symbol's drag.
+- **Portfolio construction is still the simplest possible: equal weight, no caps, no
+  vol targeting.** Every currently-long name gets 1/N of the book, full stop — no
+  per-name cap, no sector cap (so the sector concentration above flows straight
+  through into concentration risk), no volatility targeting. The -37% max drawdown is
+  a real number for an unconstrained equal-weight book, not a modeling artifact.
+- **The 25.2x annualized turnover estimate is an approximation**, not an exact
+  portfolio accounting: it's total position-change events across the universe,
+  divided by twice the average book size, annualized — treats every name as an equal
+  1/N slice at all times rather than tracking actual weight drift as the book's size
+  changes day to day. Directionally right, not to the decimal.
+- **No shorting.** Long/flat only — a flat call just means "not in the book," never a
+  short position.
 - **No live or paper execution.** Nothing in this repo submits an order against this
-  signal. `signals` just records the current long/flat call per symbol.
+  signal or the portfolio built from it. `signals` just records the current
+  long/flat call per symbol.
 
 ## Universe
 

@@ -185,6 +185,35 @@ class RegimeResult:
     trading_days: int
 
 
+def universe_daily_frame(
+    symbols: list[str] | None = None,
+    params: TrendParams | None = None,
+    cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
+) -> pd.DataFrame:
+    """Every symbol's `_daily_returns` concatenated into one long frame.
+
+    Shared by `regime_breakdown` and `quantis.signals.portfolio` — anything
+    that needs the day-by-day, cross-symbol picture rather than a per-symbol
+    total.
+    """
+    symbols = symbols if symbols is not None else full_universe()
+    frames = []
+    for symbol in symbols:
+        history = load_price_history(symbol)
+        if history.empty:
+            continue
+        frame = _daily_returns(history, params, cost_bps_per_side)
+        frame["symbol"] = symbol
+        frames.append(frame)
+    if not frames:
+        return pd.DataFrame(
+            columns=["date", "gross_return", "net_return", "position", "trade_flag", "symbol"]
+        )
+    all_days = pd.concat(frames, ignore_index=True)
+    all_days["date"] = pd.to_datetime(all_days["date"])
+    return all_days
+
+
 def regime_breakdown(
     symbols: list[str] | None = None,
     params: TrendParams | None = None,
@@ -194,18 +223,9 @@ def regime_breakdown(
     currently long each day — not per-symbol totals, so it shows *when* the
     rule made or lost money across the universe, not just which names.
     """
-    symbols = symbols if symbols is not None else full_universe()
-    frames = []
-    for symbol in symbols:
-        history = load_price_history(symbol)
-        if history.empty:
-            continue
-        frames.append(_daily_returns(history, params, cost_bps_per_side))
-    if not frames:
+    all_days = universe_daily_frame(symbols, params, cost_bps_per_side)
+    if all_days.empty:
         return []
-
-    all_days = pd.concat(frames, ignore_index=True)
-    all_days["date"] = pd.to_datetime(all_days["date"])
     long_days = all_days[all_days["position"]]
 
     daily_book_return = long_days.groupby("date")["net_return"].mean()

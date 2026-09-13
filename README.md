@@ -44,22 +44,27 @@ signal side from a simpler, fully-rule-based baseline first — see
 | **Prices** | ~758k Alpaca daily bars, 503 symbols, upserted into Postgres |
 | **Fundamentals** | Quarterly reports from SEC EDGAR, point-in-time `as_of` dates, 503 symbols back to 2006 |
 | **Signal** | Rule-based trend-follower (`quantis.signals`) over the full ~503-name active universe — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
-| **Backtest** | Vectorized long/flat backtest + a 3-variant debounce comparison, no costs modeled |
+| **Backtest** | Per-symbol backtest with a flat-bps cost model + sector/regime breakdowns + a 3-variant debounce comparison |
+| **Portfolio** | Equal-weight book of every currently-long name, rebalanced daily (`quantis.signals.portfolio`) |
 | **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute) |
 | **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Monitoring |
 
 The **Model** screen (a holdover from the deleted ML pipeline) has been removed from
 the UI — there is currently no model in this system to show diagnostics for.
 
-Backtested over its full history (2020-07-27 → today) across the full ~503-name active
-universe, with a 10 bps/side cost model: the current default rule (single-bar entry,
-3-day debounced exit) is the best of the three debounce variants tested — most wins
-(251/503), least-negative median net return, and the only one with a (barely) positive
-median Sharpe (0.04) — but median **net** return is negative for all three variants
-tested (-4.7% for the default, vs -19.0% and -6.1% for the other two). Read this
-honestly: a rule this simple having no edge, net of costs, across the broad market is
-the expected result, not a bug — see `uv run python -m quantis.signals --compare` and
-[`src/quantis/signals/rules.py`](src/quantis/signals/rules.py) for the full rationale.
+Per-symbol, net of a 10 bps/side cost model, the rule has no edge across the full
+active universe — median net return is negative for every debounce variant tested
+(-4.7% for the current default, `exit_only`, vs -19.0%/-6.1% for the other two). Digging
+into *why* (`uv run python -m quantis.signals --sectors` / `--regime`) found it
+concentrated: Energy and Information Technology carry the result, defensive sectors
+(Health Care, Real Estate, Consumer Staples) drag it down, and the rule loses money in
+every year except 2022. That pointed at portfolio construction rather than further
+per-symbol tuning — backtesting an **equal-weight book of every currently-long name**
+(`uv run python -m quantis.signals --portfolio`) over the full ingested history
+(2017-11-15 → today) returns **75.1% total / 8.2% CAGR at Sharpe 0.59**, max drawdown
+-37%, ~25x annualized turnover — diversification recovers real value the per-symbol
+view was hiding. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the full,
+honest caveats (no sector caps, no vol targeting, no shorting, no execution).
 
 ---
 

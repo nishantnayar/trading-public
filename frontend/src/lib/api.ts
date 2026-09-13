@@ -70,5 +70,30 @@ export type PortfolioSnapshot = {
   computed_at: string | null;
 };
 
+export type BrokerPosition = {
+  symbol: string;
+  qty: number;
+  price: number | null;
+  market_value: number;
+};
+
+export type BrokerFill = {
+  symbol: string;
+  side: "buy" | "sell";
+  qty: number;
+  price: number;
+  submitted_at: string | null;
+};
+
+/** Current state of the simulated paper broker (quantis.execution.simulated). */
+export type BrokerState = {
+  broker: string;
+  cash: number;
+  equity: number;
+  updated_at: string | null;
+  positions: BrokerPosition[];
+  recent_fills: BrokerFill[];
+};
+
 /** IEX free-tier fact, surfaced in the UI (not returned by /coverage). */
 export const FEED_LABEL = "IEX · adjusted";

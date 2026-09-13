@@ -46,8 +46,9 @@ signal side from a simpler, fully-rule-based baseline first — see
 | **Signal** | Rule-based trend-follower (`quantis.signals`) over the full ~503-name active universe — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
 | **Backtest** | Per-symbol backtest with a flat-bps cost model + sector/regime breakdowns + a 3-variant debounce comparison |
 | **Portfolio** | Equal-weight book, 15% GICS sector cap with water-filling reallocation, rebalanced daily (`quantis.signals.portfolio`) |
-| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute, then portfolio backtest recompute) |
-| **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Monitoring |
+| **Execution** | Simulated paper broker (`quantis.execution.simulated`) — no live path anywhere in this repo |
+| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (bar ingest → signal recompute → portfolio backtest recompute → paper rebalance, weekdays) |
+| **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Broker, Monitoring |
 
 The **Model** screen (a holdover from the deleted ML pipeline) has been removed from
 the UI — there is currently no model in this system to show diagnostics for.
@@ -76,7 +77,13 @@ comparison. Volatility targeting (`--vol-target`, Phase 20) and a per-name cap
 metric tested slightly worse, never better**; kept available rather than hidden,
 but not something to turn on by default. See
 [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for why, and the other honest
-caveats (no shorting, no execution).
+caveats (no shorting).
+
+That construction now actually trades — `quantis.execution.simulated` rebalances
+an in-database paper ledger toward it daily, filled at each symbol's latest close.
+`uv run python -c "from quantis.execution.simulated import rebalance; rebalance()"`
+or `GET /broker` / the Broker screen to see it. No live or real-money path exists
+anywhere in this repo.
 
 ---
 
@@ -88,9 +95,15 @@ flowchart LR
     F[SEC EDGAR<br/>fundamentals] --> B
     B --> SIG[Trend rule<br/>SMA crossover + 12-1 momentum]
     SIG --> B
+    B --> PF[Portfolio construction<br/>equal-weight + sector cap]
+    PF --> B
+    B --> EX[Simulated broker<br/>quantis.execution]
+    EX --> B
     P[Prefect ingest] -.-> A
     Sc[Prefect schedules] -.-> P
     Sc -.-> SIG
+    Sc -.-> PF
+    Sc -.-> EX
     B --> API[FastAPI]
     API --> S[Next.js<br/>terminal]
 ```
@@ -136,6 +149,11 @@ uv run python -m quantis.signals --persist
 # Optional: backtest the rule, or compare debounce variants
 uv run python -m quantis.signals --backtest
 uv run python -m quantis.signals --compare
+
+# 4d. Backtest / persist the portfolio construction, then paper-rebalance toward it
+uv run python -m quantis.signals --portfolio
+uv run python -c "from quantis.signals.portfolio import persist_portfolio_summary; persist_portfolio_summary()"
+uv run python -c "from quantis.execution.simulated import rebalance; rebalance()"
 
 # 5. Local stack: FastAPI :8000, Next.js :3000, Prefect :4201 + cron deployments
 uv run python scripts/start.py
@@ -190,6 +208,7 @@ uv run python scripts/start.py
 | Monitoring `/monitoring` | Live — bar coverage, ingest-run audit |
 | Signals `/signals` | Live — current trend rule signal per universe symbol |
 | Positions `/positions` | Live — illustrative equal-weight book + the real backtested portfolio construction's performance (CAGR, Sharpe, drawdown, exposure, turnover) |
+| Broker `/broker` | Live — simulated paper ledger: equity, cash, positions, recent fills |
 
 See [`frontend/README.md`](frontend/README.md).
 
@@ -202,8 +221,9 @@ src/quantis/
 ├── config.py          # pydantic settings from .env
 ├── db/                # SQLAlchemy models + engine/session
 ├── data/              # universe, Alpaca/EDGAR sources, upsert store
-├── signals/           # rule-based trend signal: indicators, rules, engine, backtest
-├── orchestration/      # Prefect ingest + signal-recompute flows (with start.py)
+├── signals/           # rule-based trend signal, portfolio construction, backtest
+├── execution/         # simulated paper broker (no live path)
+├── orchestration/      # Prefect ingest/signal/portfolio/rebalance flows (with start.py)
 └── api/               # FastAPI backend
 frontend/              # Next.js dashboard
 scripts/               # start.py, env_check, init_db, ingest_fundamentals_edgar

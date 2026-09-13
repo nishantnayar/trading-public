@@ -200,6 +200,51 @@ class PortfolioSnapshot(Base):
     )
 
 
+class BrokerAccount(Base):
+    """Cash ledger for a simulated paper broker. One row per `broker` name."""
+
+    __tablename__ = "broker_accounts"
+
+    broker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    cash: Mapped[float] = mapped_column(Numeric(18, 4), default=100_000.0)
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BrokerPosition(Base):
+    """Current simulated holding of one symbol at one broker. Qty is signed
+    (short would be negative; this system never shorts, so always >= 0).
+    """
+
+    __tablename__ = "broker_positions"
+
+    broker: Mapped[str] = mapped_column(String(32), primary_key=True)
+    symbol: Mapped[str] = mapped_column(String(16), primary_key=True)
+    qty: Mapped[float] = mapped_column(Numeric(18, 6))
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BrokerFill(Base):
+    """One simulated fill from a rebalance - append-only history, unlike the
+    account/position tables which hold current state.
+    """
+
+    __tablename__ = "broker_fills"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    broker: Mapped[str] = mapped_column(String(32), index=True)
+    symbol: Mapped[str] = mapped_column(String(16), index=True)
+    side: Mapped[str] = mapped_column(String(8))
+    qty: Mapped[float] = mapped_column(Numeric(18, 6))
+    price: Mapped[float] = mapped_column(Numeric(18, 6))
+    submitted_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
+
 class Signal(Base):
     """Latest trend-rule signal for one watchlist symbol (quantis.signals).
 

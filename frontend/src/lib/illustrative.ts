@@ -83,13 +83,16 @@ export const COST_META: { label: string; value: string; tone?: Tone }[] = [
 export const FLOWS = [
   { label: "daily-ingest", state: "HEALTHY", ok: true, schedule: "17:15 CT · weekdays", last: "2026-09-04 17:12", rows: "3,918", phase: "live" },
   { label: "daily-signals", state: "HEALTHY", ok: true, schedule: "17:30 CT · weekdays", last: "2026-09-12 17:31", rows: "22", phase: "live" },
+  { label: "daily-portfolio", state: "HEALTHY", ok: true, schedule: "17:35 CT · weekdays", last: "2026-09-13 17:36", rows: "1", phase: "live" },
+  { label: "daily-rebalance", state: "HEALTHY", ok: true, schedule: "17:40 CT · weekdays", last: "2026-09-13 17:41", rows: "252", phase: "live" },
 ] as const;
 
 export const NAV = [
   { key: "overview", hot: "F1", label: "Overview", href: "/" },
   { key: "signals", hot: "F2", label: "Signals", href: "/signals" },
   { key: "positions", hot: "F3", label: "Positions", href: "/positions" },
-  { key: "monitoring", hot: "F4", label: "Monitoring", href: "/monitoring" },
+  { key: "broker", hot: "F4", label: "Broker", href: "/broker" },
+  { key: "monitoring", hot: "F5", label: "Monitoring", href: "/monitoring" },
 ] as const;
 
 export const PROVENANCE = "ILLUSTRATIVE FIGURES · PAPER ONLY · SIGNAL v1";

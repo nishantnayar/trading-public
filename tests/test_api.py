@@ -19,3 +19,7 @@ def test_signals_route_is_mounted() -> None:
 
 def test_portfolio_route_is_mounted() -> None:
     assert "/portfolio" in app.openapi()["paths"]
+
+
+def test_broker_route_is_mounted() -> None:
+    assert "/broker" in app.openapi()["paths"]

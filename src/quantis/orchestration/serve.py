@@ -29,6 +29,7 @@ from prefect.utilities.asyncutils import sync_compatible
 from quantis.config import _REPO_ROOT, get_settings
 from quantis.orchestration.flows import (
     ingest_incremental,
+    rebalance_paper,
     recompute_portfolio,
     recompute_signals,
 )
@@ -130,7 +131,16 @@ def apply_deployments(pool: str) -> None:
         entrypoint_type=EntrypointType.MODULE_PATH,
         job_variables=job_variables,
     )
-    for deployment in (ingest, signals, portfolio):
+    paper = rebalance_paper.to_deployment(
+        name="daily-rebalance",
+        cron="40 17 * * 1-5",  # 5 min after daily-portfolio
+        tags=["quantis", "execution"],
+        description="Rebalance the simulated paper broker toward today's target weights.",
+        work_pool_name=pool,
+        entrypoint_type=EntrypointType.MODULE_PATH,
+        job_variables=job_variables,
+    )
+    for deployment in (ingest, signals, portfolio, paper):
         deployment.apply()  # type: ignore[attr-defined]
         logger.info(
             "applied {}/{} on pool {}",

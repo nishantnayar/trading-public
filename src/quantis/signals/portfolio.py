@@ -57,6 +57,7 @@ from quantis.signals.backtest import (
     _symbol_sectors,
     universe_daily_frame,
 )
+from quantis.signals.engine import latest_signals
 from quantis.signals.rules import TrendParams
 
 DEFAULT_MAX_SECTOR_WEIGHT = 0.15
@@ -399,6 +400,52 @@ def portfolio_summary(
         vol_target=vol_target,
         avg_leverage=avg_leverage,
     )
+
+
+def target_weights(
+    rows: list[dict] | None = None,
+    max_sector_weight: float | None = DEFAULT_MAX_SECTOR_WEIGHT,
+    reallocate: bool = DEFAULT_REALLOCATE,
+    max_name_weight: float | None = DEFAULT_MAX_NAME_WEIGHT,
+) -> dict[str, float]:
+    """Today's target weight per symbol - the same construction as the
+    backtest (equal-weight, sector-capped/reallocated, optionally
+    name-capped), computed for a single day instead of a full history.
+
+    `rows` defaults to `latest_signals()` (today's long/flat call per
+    symbol); pass a caller-supplied equivalent to avoid re-querying. Returns
+    `{}` if nothing is currently long. Used by `quantis.execution` to know
+    what the simulated broker should be rebalancing toward.
+    """
+    rows = rows if rows is not None else latest_signals()
+    long_symbols = [r["symbol"] for r in rows if r.get("signal") == "long"]
+    if not long_symbols:
+        return {}
+
+    weight = dict.fromkeys(long_symbols, 1.0 / len(long_symbols))
+
+    if max_sector_weight is not None:
+        sectors = _symbol_sectors(long_symbols)
+        counts = pd.Series([sectors.get(s, "Unknown") for s in long_symbols]).value_counts()
+        if reallocate:
+            sector_weight = _water_fill(counts, max_sector_weight, total=1.0)
+        else:
+            sector_share = counts / counts.sum()
+            sector_weight = sector_share.clip(upper=max_sector_weight)
+        weight = {
+            s: float(sector_weight[sectors.get(s, "Unknown")] / counts[sectors.get(s, "Unknown")])
+            for s in long_symbols
+        }
+
+    if max_name_weight is not None:
+        shares = pd.Series(weight)
+        total = float(shares.sum())
+        if reallocate:
+            weight = _water_fill(shares, max_name_weight, total=total).to_dict()
+        else:
+            weight = {s: min(w, max_name_weight) for s, w in weight.items()}
+
+    return weight
 
 
 def _parse_date(value: str) -> object | None:

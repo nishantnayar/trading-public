@@ -50,6 +50,26 @@ def test_recompute_portfolio_records_success(monkeypatch: pytest.MonkeyPatch) ->
     assert finished == {"status": "success"}
 
 
+def test_rebalance_paper_records_success(monkeypatch: pytest.MonkeyPatch) -> None:
+    class _FakeResult:
+        equity = 100_000.0
+        cash = 0.0
+        n_fills = 12
+        n_positions = 150
+
+    monkeypatch.setattr(flows, "rebalance_simulated", lambda: _FakeResult())
+    monkeypatch.setattr(flows, "start_ingest_run", lambda *a, **k: 1)
+    finished: dict[str, object] = {}
+    monkeypatch.setattr(
+        flows, "finish_ingest_run", lambda run_id, **kwargs: finished.update(kwargs)
+    )
+    result = flows.rebalance_paper.fn()
+    assert result == {"equity": 100_000.0, "cash": 0.0, "n_fills": 12, "n_positions": 150}
+    assert finished["status"] == "success"
+    assert finished["symbols_processed"] == 150
+    assert finished["rows_written"] == 12
+
+
 def test_pin_quantis_prefect_env_points_at_project_server(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PREFECT_API_URL", raising=False)
     monkeypatch.delenv("PREFECT_HOME", raising=False)

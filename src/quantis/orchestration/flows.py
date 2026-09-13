@@ -19,6 +19,7 @@ from quantis.data.store import (
     upsert_daily_bars,
 )
 from quantis.data.universe import active_symbols, seed_symbols
+from quantis.execution.simulated import rebalance as rebalance_simulated
 from quantis.signals.engine import persist_latest_signals
 from quantis.signals.portfolio import persist_portfolio_summary
 
@@ -129,6 +130,37 @@ def recompute_portfolio() -> dict:
         finish_ingest_run(run_id, status="success")
         logger.info("persisted portfolio snapshot")
         return {"status": "ok"}
+    except Exception as exc:
+        finish_ingest_run(run_id, status="failed", detail=str(exc))
+        raise
+
+
+@flow(name="rebalance-simulated")
+def rebalance_paper() -> dict:
+    """Rebalance the simulated paper broker toward today's target weights.
+
+    Scheduled to run after `recompute-signals` (and, transitively,
+    `recompute-portfolio`) so it trades on today's signal, not yesterday's.
+    Simulated only - no live or real-money path exists in
+    `quantis.execution`. See docs/LIMITATIONS.md.
+    """
+    run_id = start_ingest_run("rebalance-simulated")
+    try:
+        result = rebalance_simulated()
+        finish_ingest_run(
+            run_id,
+            status="success",
+            symbols_processed=result.n_positions,
+            rows_written=result.n_fills,
+            detail=f"equity={result.equity:.0f} cash={result.cash:.0f}",
+        )
+        logger.info("simulated rebalance: {}", result)
+        return {
+            "equity": result.equity,
+            "cash": result.cash,
+            "n_fills": result.n_fills,
+            "n_positions": result.n_positions,
+        }
     except Exception as exc:
         finish_ingest_run(run_id, status="failed", detail=str(exc))
         raise

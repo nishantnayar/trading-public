@@ -255,9 +255,23 @@ rationale and the parameter comparison that picked these defaults.
   changes day to day. Directionally right, not to the decimal.
 - **No shorting.** Long/flat only — a flat call just means "not in the book," never a
   short position.
-- **No live or paper execution.** Nothing in this repo submits an order against this
-  signal or the portfolio built from it. `signals` just records the current
-  long/flat call per symbol.
+- **A simulated paper broker exists (`quantis.execution.simulated`) — no live path
+  anywhere in this repo.** It rebalances an in-database cash + position ledger
+  toward `quantis.signals.portfolio.target_weights()` (today's construction), filled
+  at each symbol's latest close. No slippage dispersion, no market impact, no
+  borrow cost, no financing, and no next-day execution lag — the fill uses the same
+  close the weights were computed from, not a later, realistic fill price. Fractional
+  shares are allowed since this is a simulation, not a real brokerage. `GET /broker`
+  and the Broker screen read the current ledger; `daily-rebalance` (17:40 weekdays)
+  recomputes it. Positions traded down to ~0 (dropped from the book, or capped out)
+  are removed rather than carried as dust.
+- **A symbol with no current price is silently skipped, not liquidated.** If a
+  held name stops getting bars (delisted, ingestion gap), the rebalance leaves its
+  position untouched and excludes it from the equity mark until a price
+  reappears — it neither trades nor is valued, rather than erroring or forcing a
+  sale at a stale price. Rare in practice (the same universe backing the signal
+  layer is what gets ingested), but a real gap this would need explicit handling
+  for.
 
 ## Universe
 

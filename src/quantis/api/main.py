@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from quantis.api.routes.broker import router as broker_router
 from quantis.api.routes.market import router as market_router
 from quantis.api.routes.portfolio import router as portfolio_router
 from quantis.api.routes.signals import router as signals_router
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(market_router)
     app.include_router(signals_router)
     app.include_router(portfolio_router)
+    app.include_router(broker_router)
     return app
 
 

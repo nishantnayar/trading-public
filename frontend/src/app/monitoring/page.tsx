@@ -110,11 +110,11 @@ export default function MonitoringPage() {
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 10, padding: "32px 14px" }}>
               <div style={{ fontFamily: MONO, fontSize: 11, letterSpacing: "0.1em", color: C.accent }}>NO ROWS YET</div>
               <div style={{ fontFamily: SANS, fontSize: 12, lineHeight: 1.6, color: C.t3, maxWidth: "46ch" }}>
-                No audit rows yet. Daily ingest and score-publish both write this table
-                (`ingest-daily-bars`, `publish-scores`).
+                No audit rows yet. Daily ingest and signal recompute both write this table
+                (`ingest-daily-bars`, `recompute-signals`).
               </div>
               <div style={{ border: `1px solid ${C.cap}`, padding: "5px 10px", fontFamily: MONO, fontSize: 11, color: C.t2 }}>
-                uv run python -m quantis.backtest.publish
+                uv run python -m quantis.signals --persist
               </div>
             </div>
           )}

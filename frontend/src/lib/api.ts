@@ -49,22 +49,6 @@ export type SignalRow = {
   computed_at: string | null;
 };
 
-export type PositionHolding = {
-  symbol: string;
-  sector: string;
-  weight: number;
-  side: string;
-};
-
-export type PositionsSnapshot = {
-  as_of: string | null;
-  construction?: string;
-  holdings: PositionHolding[];
-  n_holdings?: number;
-  constraints: { label: string; value: string; limit: string; used: number }[];
-  rebalance: { buys: number; sells: number; turnover: number; prior: string | null };
-};
-
 export type ModelSnapshot = {
   as_of: string | null;
   oof_source: string;

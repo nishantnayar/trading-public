@@ -24,6 +24,7 @@ from quantis.db.models import (
     BrokerFill,
     BrokerPosition,
     DailyBar,
+    Symbol,
 )
 from quantis.signals.portfolio import target_weights
 
@@ -256,6 +257,14 @@ def account_state(broker: str = DEFAULT_BROKER) -> dict | None:
 
         positions = list(session.query(BrokerPosition).filter(BrokerPosition.broker == broker))
         prices = _latest_prices([p.symbol for p in positions])
+        names: dict[str, str | None] = {
+            row.symbol: row.name
+            for row in session.execute(
+                select(Symbol.symbol, Symbol.name).where(
+                    Symbol.symbol.in_([p.symbol for p in positions])
+                )
+            )
+        }
         equity = float(account.cash) + sum(
             float(p.qty) * prices[p.symbol] for p in positions if p.symbol in prices
         )
@@ -278,6 +287,7 @@ def account_state(broker: str = DEFAULT_BROKER) -> dict | None:
             "positions": [
                 {
                     "symbol": p.symbol,
+                    "name": names.get(p.symbol),
                     "qty": float(p.qty),
                     "price": prices.get(p.symbol),
                     "market_value": float(p.qty) * prices[p.symbol] if p.symbol in prices else None,

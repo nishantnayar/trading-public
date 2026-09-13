@@ -63,7 +63,10 @@ export default function PositionsPage() {
                 <tbody>
                   {longs.map((r) => (
                     <tr key={r.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
-                      <td style={{ padding: "0 10px 0 14px", color: C.text }}>{r.symbol}</td>
+                      <td style={{ padding: "0 10px 0 14px", color: C.text }}>
+                        {r.symbol}
+                        {r.name && <span style={{ marginLeft: 8, color: C.t4, fontSize: 11 }}>{r.name}</span>}
+                      </td>
                       <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{r.close.toFixed(2)}</td>
                       <td style={{ padding: "0 14px 0 10px", textAlign: "right", color: C.pos }}>
                         {(weight * 100).toFixed(1)}%

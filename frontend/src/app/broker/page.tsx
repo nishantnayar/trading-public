@@ -90,6 +90,7 @@ export default function BrokerPage() {
                     <tr key={p.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
                       <td style={{ padding: "0 10px 0 14px", color: p.stale ? C.accent2 : C.text }}>
                         {p.symbol}
+                        {p.name && <span style={{ marginLeft: 8, color: C.t4, fontSize: 11 }}>{p.name}</span>}
                         {p.stale && <span style={{ marginLeft: 6, fontSize: 9, color: C.accent2 }}>STALE</span>}
                       </td>
                       <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{p.qty.toFixed(3)}</td>

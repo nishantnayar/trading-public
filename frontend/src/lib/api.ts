@@ -40,6 +40,8 @@ export type IngestRun = {
 /** One watchlist symbol's current trend-rule signal (quantis.signals). */
 export type SignalRow = {
   symbol: string;
+  name: string | null;
+  sector: string | null;
   date: string;
   signal: "long" | "flat";
   close: number;
@@ -72,6 +74,7 @@ export type PortfolioSnapshot = {
 
 export type BrokerPosition = {
   symbol: string;
+  name: string | null;
   qty: number;
   price: number | null;
   market_value: number | null;

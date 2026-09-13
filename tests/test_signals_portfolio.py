@@ -9,6 +9,8 @@ import pytest
 import quantis.signals.backtest as backtest_module
 import quantis.signals.portfolio as portfolio_module
 from quantis.signals.portfolio import (
+    DEFAULT_MAX_SECTOR_WEIGHT,
+    DEFAULT_REALLOCATE,
     _water_fill_sector_weights,
     daily_book_returns,
     portfolio_summary,
@@ -38,7 +40,7 @@ def test_daily_book_return_is_average_of_currently_long_names(
         lambda symbol: df_a if symbol == "A" else df_b,
     )
 
-    daily = daily_book_returns(params=TrendParams(fast=10, slow=50))
+    daily = daily_book_returns(params=TrendParams(fast=10, slow=50), max_sector_weight=None)
     assert not daily.empty
     # Identical series -> identical signals -> n_long is 0 or 2, never 1.
     assert set(daily["n_long"].unique()) <= {0, 2}
@@ -50,7 +52,7 @@ def test_portfolio_summary_flat_book_is_zero_everywhere(monkeypatch: pytest.Monk
     monkeypatch.setattr(backtest_module, "full_universe", lambda: ["FLAT"])
     monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: flat)
 
-    result = portfolio_summary(params=TrendParams(fast=10, slow=50))
+    result = portfolio_summary(params=TrendParams(fast=10, slow=50), max_sector_weight=None)
     assert result.total_return == 0.0
     assert result.sharpe == 0.0
     assert result.max_drawdown == 0.0
@@ -65,7 +67,7 @@ def test_portfolio_summary_sustained_uptrend_is_profitable(
     monkeypatch.setattr(backtest_module, "full_universe", lambda: ["ONLYNAME"])
     monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
 
-    result = portfolio_summary(params=TrendParams(fast=10, slow=50))
+    result = portfolio_summary(params=TrendParams(fast=10, slow=50), max_sector_weight=None)
     assert result.total_return > 0
     assert result.sharpe > 0
     assert result.avg_names_long <= 1.0
@@ -88,7 +90,7 @@ def test_uncapped_book_is_fully_invested_when_names_are_long(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _three_identical_tech_names(monkeypatch)
-    daily = daily_book_returns(params=TrendParams(fast=10, slow=50))
+    daily = daily_book_returns(params=TrendParams(fast=10, slow=50), max_sector_weight=None)
     long_days = daily[daily["n_long"] > 0]
     assert not long_days.empty
     assert np.allclose(long_days["exposure"], 1.0)
@@ -126,7 +128,7 @@ def test_sector_cap_lowers_avg_exposure_in_portfolio_summary(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _three_identical_tech_names(monkeypatch)
-    uncapped = portfolio_summary(params=TrendParams(fast=10, slow=50))
+    uncapped = portfolio_summary(params=TrendParams(fast=10, slow=50), max_sector_weight=None)
     capped = portfolio_summary(params=TrendParams(fast=10, slow=50), max_sector_weight=0.5)
     # Every long day goes from 100% to 50% exposure, so the full-period
     # (including flat/warm-up days) average should exactly halve too.
@@ -188,3 +190,37 @@ def test_portfolio_summary_records_reallocated_flag(monkeypatch: pytest.MonkeyPa
         params=TrendParams(fast=10, slow=50), max_sector_weight=0.5, reallocate=True
     )
     assert result.reallocated is True
+
+
+def test_defaults_are_15pct_reallocated_sector_cap() -> None:
+    assert DEFAULT_MAX_SECTOR_WEIGHT == 0.15
+    assert DEFAULT_REALLOCATE is True
+
+
+def test_portfolio_summary_applies_default_cap_and_reallocation_when_unspecified(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # 5 names, 3 sectors (Tech dominant at 3/5 = 60% raw share) - calling with
+    # no explicit max_sector_weight/reallocate should behave exactly like the
+    # explicit 15%-capped, reallocated call, and differently from uncapped.
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["A", "B", "C", "D", "E"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+    monkeypatch.setattr(
+        portfolio_module,
+        "_symbol_sectors",
+        lambda symbols: {"A": "Tech", "B": "Tech", "C": "Tech", "D": "Energy", "E": "Health"},
+    )
+
+    default_result = portfolio_summary(params=TrendParams(fast=10, slow=50))
+    explicit_result = portfolio_summary(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=0.15, reallocate=True
+    )
+    uncapped_result = portfolio_summary(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=None
+    )
+
+    assert default_result.avg_exposure == pytest.approx(explicit_result.avg_exposure)
+    assert default_result.avg_exposure != pytest.approx(uncapped_result.avg_exposure)
+    assert default_result.max_sector_weight == 0.15
+    assert default_result.reallocated is True

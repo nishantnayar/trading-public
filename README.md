@@ -45,7 +45,7 @@ signal side from a simpler, fully-rule-based baseline first — see
 | **Fundamentals** | Quarterly reports from SEC EDGAR, point-in-time `as_of` dates, 503 symbols back to 2006 |
 | **Signal** | Rule-based trend-follower (`quantis.signals`) over the full ~503-name active universe — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
 | **Backtest** | Per-symbol backtest with a flat-bps cost model + sector/regime breakdowns + a 3-variant debounce comparison |
-| **Portfolio** | Equal-weight book of every currently-long name, rebalanced daily (`quantis.signals.portfolio`) |
+| **Portfolio** | Equal-weight book, 15% GICS sector cap with water-filling reallocation, rebalanced daily (`quantis.signals.portfolio`) |
 | **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute) |
 | **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Monitoring |
 
@@ -59,19 +59,20 @@ into *why* (`uv run python -m quantis.signals --sectors` / `--regime`) found it
 concentrated: Energy and Information Technology carry the result, defensive sectors
 (Health Care, Real Estate, Consumer Staples) drag it down, and the rule loses money in
 every year except 2022. That pointed at portfolio construction rather than further
-per-symbol tuning — backtesting an **equal-weight book of every currently-long name**
-(`uv run python -m quantis.signals --portfolio`) over the full ingested history
-(2017-11-15 → today) returns **75.1% total / 8.2% CAGR at Sharpe 0.59**, max drawdown
--37%, ~25x annualized turnover — diversification recovers real value the per-symbol
-view was hiding. A 25% sector cap (`--sector-cap 0.25`), which scales an over-cap
-sector down without reallocating the freed weight, cuts max drawdown to **-20.4%**
-and improves Sharpe to **0.64** at a small cost in CAGR (7.9%) — the concentration
-risk Energy/Tech dominance implied was real. Reallocating that freed weight to
-under-cap sectors instead of leaving it uninvested (`--reallocate`, water-filling)
-barely matters at 25% (few sectors bind that hard) but clearly helps at a tighter
-15% cap — CAGR 7.0%→7.7%, Sharpe 0.62→0.65, avg exposure 66.8%→71.6%. See
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the full, honest caveats (no
-per-name cap, no vol targeting, no shorting, no execution).
+per-symbol tuning.
+
+**The default portfolio construction** (`uv run python -m quantis.signals --portfolio`)
+is an equal-weight book of every currently-long name, capped at 15% per GICS sector
+with the freed weight from any over-cap sector reallocated to under-cap ones
+("water-filling") rather than left uninvested. Over the full ingested history
+(2017-11-15 → today): **70.2% total return / 7.7% CAGR at Sharpe 0.65**, max drawdown
+**-18.9%**, ~25x annualized turnover — diversification recovers real value the
+per-symbol view was hiding, and capping the sector concentration found above cuts the
+uncapped book's -37% drawdown by half. These defaults were chosen by comparing cap
+levels and reallocation on/off (`--no-cap`, `--no-reallocate`) against the live
+universe — see [`docs/PROGRESS.md`](docs/PROGRESS.md) Phases 15-17 for the full
+comparison and [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the honest caveats
+(no per-name cap, no vol targeting, no shorting, no execution).
 
 ---
 

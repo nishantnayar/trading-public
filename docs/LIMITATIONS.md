@@ -185,37 +185,36 @@ rationale and the parameter comparison that picked these defaults.
   rule is broken."
 - **Per-symbol median return and the portfolio-level backtest tell different
   stories, and the portfolio is the better number.** `quantis.signals.portfolio`
-  backtests an equal-weight book of every currently-long name, rebalanced daily
-  (`uv run python -m quantis.signals --portfolio`). Over the full ingested history
-  (2017-11-15 → 2026-09-10, 1,798 trading days), that book returns **75.1% total /
-  8.2% CAGR, Sharpe 0.59, max drawdown -37.0%**, at ~25.2x annualized turnover —
-  materially better than the negative per-symbol median net return. Cross-sectional
-  diversification across many concurrently-long names smooths out the whipsaw/cost
-  drag that dominates any single undiversified symbol, while the per-symbol median is
-  pulled down by sectors with no exploitable trend (see above). Prior to this, the
-  repo traded each symbol independently with no portfolio construction, so it
-  captured neither the diversification benefit nor avoided the median symbol's drag.
-- **An optional sector cap meaningfully improves the unconstrained book.**
-  `quantis.signals.portfolio.daily_book_returns`/`portfolio_summary` take
-  `max_sector_weight` (`uv run python -m quantis.signals --portfolio --sector-cap
-  0.25`). At a 25% cap, over the same full history: **max drawdown improves from
-  -37.0% to -20.4%, Sharpe improves from 0.59 to 0.64**, at a small cost to CAGR
-  (8.2% → 7.9%) and average exposure (78.3% → 72.3%). By default the cap works by
-  scaling down an over-cap sector's names to exactly the cap and **not reallocating
-  the freed weight elsewhere** — a capped day is a smaller, less-invested book, not a
-  fully-invested one with different proportions.
-- **Reallocating the freed weight (`reallocate=True` / `--reallocate`) helps a lot
-  at a tight cap, barely at all at a loose one — both are real, verified results, not
-  a bug.** Reallocation redistributes an over-cap sector's freed weight to
-  under-cap sectors via iterative proportional capping ("water-filling":
-  `_water_fill_sector_weights`), rather than leaving it as cash. At the 25% cap
-  above, reallocating changes almost nothing (avg exposure 72.3% → 72.4%, every
-  other metric identical to one decimal) — with 11 GICS sectors and ~175 names
-  typically long, a 25% cap rarely binds hard enough to leave much to redistribute.
-  At a tighter **15% cap**, where several sectors bind simultaneously, it matters
-  much more: avg exposure 66.8% → 71.6%, CAGR 7.0% → 7.7%, Sharpe 0.62 → 0.65. Verify
-  either result yourself: `uv run python -m quantis.signals --portfolio --sector-cap
-  0.15 --reallocate`.
+  backtests a book of every currently-long name, rebalanced daily
+  (`uv run python -m quantis.signals --portfolio`). Its **default construction**
+  is equal-weight, capped at **15% per GICS sector**, with an over-cap sector's
+  freed weight **reallocated** to under-cap sectors via iterative proportional
+  capping ("water-filling": `_water_fill_sector_weights`) rather than left
+  uninvested. Over the full ingested history (2017-11-15 → 2026-09-10, 1,798
+  trading days), that construction returns **70.2% total / 7.7% CAGR, Sharpe
+  0.65, max drawdown -18.9%**, at ~25.2x annualized turnover — materially better
+  than the negative per-symbol median net return. Cross-sectional diversification
+  across many concurrently-long names smooths out the whipsaw/cost drag that
+  dominates any single undiversified symbol, while the per-symbol median is
+  pulled down by sectors with no exploitable trend (see above).
+- **These defaults (15% cap, reallocated) were picked by comparing alternatives
+  against the live universe, not assumed.** All four combinations, same period:
+
+  | construction | CAGR | Sharpe | max drawdown | avg exposure |
+  |---|---|---|---|---|
+  | equal-weight, no cap | 8.2% | 0.59 | -37.0% | 78.3% |
+  | 25% cap, not reallocated | 7.9% | 0.64 | -20.4% | 72.3% |
+  | 25% cap, reallocated | 7.9% | 0.64 | -20.4% | 72.4% |
+  | **15% cap, not reallocated** | 7.0% | 0.62 | **-19.2%** | 66.8% |
+  | **15% cap, reallocated (default)** | **7.7%** | **0.65** | -18.9% | **71.6%** |
+
+  Reallocation barely matters at the 25% cap (few sectors bind that hard with 11
+  GICS sectors and ~175 names typically long) but clearly helps at 15% (several
+  sectors bind simultaneously, leaving real freed weight to redistribute) — both
+  results are genuine, not a bug, confirmed with isolated synthetic tests before
+  trusting the live-DB numbers. Reproduce any row:
+  `uv run python -m quantis.signals --portfolio --sector-cap 0.15` (add
+  `--no-cap` or `--no-reallocate` for the other variants).
 - **No per-name cap, no volatility targeting.** Within a sector (capped or not),
   every long name still gets an equal 1/N-of-sector share — no single-name limit, no
   vol-scaling of position size.

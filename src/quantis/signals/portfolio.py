@@ -14,9 +14,17 @@ estimate over the whole period.
 
 Construction: equal weight across every name currently signaled long,
 rebalanced daily (a name added/dropped from the long book that day
-enters/exits at 1/N of whatever N is that day). `max_sector_weight` optionally
-caps any one GICS sector's total weight — see `_capped_weights` for exactly
-how. No per-name cap, no vol targeting — see docs/LIMITATIONS.md.
+enters/exits at 1/N of whatever N is that day), with a default 15% GICS
+sector cap whose freed weight is reallocated to under-cap sectors
+(`DEFAULT_MAX_SECTOR_WEIGHT`, `DEFAULT_REALLOCATE`) rather than left
+uninvested. Chosen after comparing cap levels and reallocation on/off against
+the live universe: at 15% (where multiple sectors bind at once) reallocation
+meaningfully improves CAGR/Sharpe/exposure over leaving the freed weight
+idle; at a looser 25% cap it barely matters, since few sectors bind that
+hard. See docs/LIMITATIONS.md and docs/PROGRESS.md (Phases 16-17) for the
+comparison. Pass `max_sector_weight=None` for pure equal-weight, or
+`reallocate=False` for the single-pass (no-reallocation) cap. No per-name
+cap, no vol targeting — see docs/LIMITATIONS.md.
 """
 
 from __future__ import annotations
@@ -33,6 +41,9 @@ from quantis.signals.backtest import (
     universe_daily_frame,
 )
 from quantis.signals.rules import TrendParams
+
+DEFAULT_MAX_SECTOR_WEIGHT = 0.15
+DEFAULT_REALLOCATE = True
 
 
 @dataclass(frozen=True)
@@ -138,8 +149,8 @@ def daily_book_returns(
     symbols: list[str] | None = None,
     params: TrendParams | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
-    max_sector_weight: float | None = None,
-    reallocate: bool = False,
+    max_sector_weight: float | None = DEFAULT_MAX_SECTOR_WEIGHT,
+    reallocate: bool = DEFAULT_REALLOCATE,
 ) -> pd.DataFrame:
     """One row per trading day: weighted net/gross return of every
     currently-long name that day (equal-weight, or sector-capped if
@@ -184,14 +195,13 @@ def portfolio_summary(
     symbols: list[str] | None = None,
     params: TrendParams | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
-    max_sector_weight: float | None = None,
-    reallocate: bool = False,
+    max_sector_weight: float | None = DEFAULT_MAX_SECTOR_WEIGHT,
+    reallocate: bool = DEFAULT_REALLOCATE,
 ) -> PortfolioResult:
-    """Full-period backtest of the book (see module docstring). Pass
-    `max_sector_weight` (e.g. 0.25) to cap any one GICS sector's daily weight;
-    omit for pure equal-weight. `reallocate=True` redistributes a capped
-    sector's freed weight to under-cap sectors instead of leaving it
-    uninvested - see `_capped_weights`."""
+    """Full-period backtest of the book (see module docstring for the default
+    construction). Pass `max_sector_weight=None` for pure equal-weight, or
+    `reallocate=False` to leave a capped sector's freed weight uninvested
+    instead of redistributing it - see `_capped_weights`."""
     daily = daily_book_returns(symbols, params, cost_bps_per_side, max_sector_weight, reallocate)
     net_return = daily["net_return"]
     n_days = len(daily)

@@ -10,7 +10,8 @@ uv run python -m quantis.signals --sectors
 uv run python -m quantis.signals --regime
 uv run python -m quantis.signals --portfolio
 uv run python -m quantis.signals --portfolio --sector-cap 0.25
-uv run python -m quantis.signals --portfolio --sector-cap 0.25 --reallocate
+uv run python -m quantis.signals --portfolio --no-cap
+uv run python -m quantis.signals --portfolio --no-reallocate
 """
 
 from __future__ import annotations
@@ -27,7 +28,11 @@ from quantis.signals.backtest import (
     sector_breakdown,
 )
 from quantis.signals.engine import latest_signals, persist_latest_signals
-from quantis.signals.portfolio import PortfolioResult, portfolio_summary
+from quantis.signals.portfolio import (
+    DEFAULT_MAX_SECTOR_WEIGHT,
+    PortfolioResult,
+    portfolio_summary,
+)
 
 _ROW = (
     "{symbol:<8}{strategy:>10.1%} {net:>10.1%} {buy_hold:>11.1%} "
@@ -152,24 +157,23 @@ def _print_one_portfolio(r: PortfolioResult) -> None:
 
 
 def _print_portfolio(cost_bps: float, sector_cap: float | None, reallocate: bool) -> None:
-    uncapped = portfolio_summary(cost_bps_per_side=cost_bps)
-    print(f"period: {uncapped.start} .. {uncapped.end}  ({uncapped.trading_days} trading days)")
+    """Default construction (equal-weight, `sector_cap`-capped, reallocated
+    unless disabled) first, then pure equal-weight for reference."""
+    default = portfolio_summary(
+        cost_bps_per_side=cost_bps, max_sector_weight=sector_cap, reallocate=reallocate
+    )
+    print(f"period: {default.start} .. {default.end}  ({default.trading_days} trading days)")
     print(f"cost model: {cost_bps:.1f} bps per side\n")
 
-    print("-- equal-weight, no sector cap --")
-    _print_one_portfolio(uncapped)
+    cap_label = f"{sector_cap:.0%} sector cap" if sector_cap is not None else "no sector cap"
+    realloc_label = "reallocated" if reallocate and sector_cap is not None else "not reallocated"
+    print(f"-- default: equal-weight, {cap_label}, {realloc_label} --")
+    _print_one_portfolio(default)
 
     if sector_cap is not None:
-        capped = portfolio_summary(cost_bps_per_side=cost_bps, max_sector_weight=sector_cap)
-        print(f"\n-- equal-weight, {sector_cap:.0%} sector cap, not reallocated --")
-        _print_one_portfolio(capped)
-
-        if reallocate:
-            reallocated = portfolio_summary(
-                cost_bps_per_side=cost_bps, max_sector_weight=sector_cap, reallocate=True
-            )
-            print(f"\n-- equal-weight, {sector_cap:.0%} sector cap, reallocated --")
-            _print_one_portfolio(reallocated)
+        uncapped = portfolio_summary(cost_bps_per_side=cost_bps, max_sector_weight=None)
+        print("\n-- for reference: equal-weight, no sector cap --")
+        _print_one_portfolio(uncapped)
 
 
 if __name__ == "__main__":
@@ -200,15 +204,21 @@ if __name__ == "__main__":
     parser.add_argument(
         "--sector-cap",
         type=float,
-        default=None,
+        default=DEFAULT_MAX_SECTOR_WEIGHT,
         metavar="FRACTION",
-        help="with --portfolio, also show a run capped at this sector weight (e.g. 0.25)",
+        help=f"with --portfolio, cap any one GICS sector's weight at this fraction "
+        f"(default: {DEFAULT_MAX_SECTOR_WEIGHT:.2f}); use --no-cap for pure equal-weight",
     )
     parser.add_argument(
-        "--reallocate",
+        "--no-cap",
         action="store_true",
-        help="with --portfolio --sector-cap, also show a run reallocating freed weight "
-        "to under-cap sectors instead of leaving it uninvested",
+        help="with --portfolio, disable the sector cap entirely (pure equal-weight)",
+    )
+    parser.add_argument(
+        "--no-reallocate",
+        action="store_true",
+        help="with --portfolio, leave a capped sector's freed weight uninvested instead "
+        "of reallocating it to under-cap sectors (default: reallocate)",
     )
     parser.add_argument(
         "--cost-bps",
@@ -228,7 +238,9 @@ if __name__ == "__main__":
         _print_regime(cost_bps=args.cost_bps)
     elif args.portfolio:
         _print_portfolio(
-            cost_bps=args.cost_bps, sector_cap=args.sector_cap, reallocate=args.reallocate
+            cost_bps=args.cost_bps,
+            sector_cap=None if args.no_cap else args.sector_cap,
+            reallocate=not args.no_reallocate,
         )
     elif args.persist:
         n = persist_latest_signals()

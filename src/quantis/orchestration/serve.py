@@ -27,7 +27,7 @@ from prefect.flows import EntrypointType
 from prefect.utilities.asyncutils import sync_compatible
 
 from quantis.config import _REPO_ROOT, get_settings
-from quantis.orchestration.flows import ingest_incremental
+from quantis.orchestration.flows import ingest_incremental, recompute_signals
 
 
 def pin_quantis_prefect_env() -> str:
@@ -91,7 +91,7 @@ def _prefect_cli() -> str:
 
 
 def apply_deployments(pool: str) -> None:
-    """Point the ingest cron job at `pool` so a process worker can pick them up.
+    """Point the ingest and signals cron jobs at `pool` so a worker can pick them up.
 
     Kwargs are passed explicitly (not via `**dict`) so the type checker can match
     `to_deployment`'s overloads. `.apply()` and the `.flow_name`/`.name` attributes come
@@ -108,7 +108,16 @@ def apply_deployments(pool: str) -> None:
         entrypoint_type=EntrypointType.MODULE_PATH,
         job_variables=job_variables,
     )
-    for deployment in (ingest,):
+    signals = recompute_signals.to_deployment(
+        name="daily-signals",
+        cron="30 17 * * 1-5",  # 15 min after daily-ingest, so it reads today's bars
+        tags=["quantis", "signals"],
+        description="Recompute the trend rule over the watchlist and persist it.",
+        work_pool_name=pool,
+        entrypoint_type=EntrypointType.MODULE_PATH,
+        job_variables=job_variables,
+    )
+    for deployment in (ingest, signals):
         deployment.apply()  # type: ignore[attr-defined]
         logger.info(
             "applied {}/{} on pool {}",

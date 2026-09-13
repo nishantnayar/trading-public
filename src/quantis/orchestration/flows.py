@@ -19,6 +19,7 @@ from quantis.data.store import (
     upsert_daily_bars,
 )
 from quantis.data.universe import active_symbols, seed_symbols
+from quantis.signals.engine import persist_latest_signals
 
 DEFAULT_START = dt.date(2016, 1, 1)  # Alpaca IEX history begins ~2016
 INGEST_OVERLAP_DAYS = 10
@@ -93,6 +94,24 @@ def ingest_incremental() -> dict:
     start, end = incremental_window()
     logger.info("incremental window {} .. {}", start, end)
     return ingest_daily_bars.fn(start=start, end=end)
+
+
+@flow(name="recompute-signals")
+def recompute_signals() -> dict:
+    """Recompute the trend rule over the watchlist and persist the latest signal.
+
+    Scheduled to run after `ingest-daily-incremental` so it reads that day's bars,
+    not yesterday's.
+    """
+    run_id = start_ingest_run("recompute-signals")
+    try:
+        n = persist_latest_signals()
+        finish_ingest_run(run_id, status="success", rows_written=n)
+        logger.info("persisted {} signal rows", n)
+        return {"rows_written": n}
+    except Exception as exc:
+        finish_ingest_run(run_id, status="failed", detail=str(exc))
+        raise
 
 
 if __name__ == "__main__":

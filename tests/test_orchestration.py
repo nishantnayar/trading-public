@@ -24,6 +24,18 @@ def test_incremental_window_full_history_when_empty(monkeypatch: pytest.MonkeyPa
     assert end == dt.date(2026, 1, 15)
 
 
+def test_recompute_signals_records_rows_written(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(flows, "persist_latest_signals", lambda: 22)
+    finished: dict[str, object] = {}
+    monkeypatch.setattr(flows, "start_ingest_run", lambda *a, **k: 1)
+    monkeypatch.setattr(
+        flows, "finish_ingest_run", lambda run_id, **kwargs: finished.update(kwargs)
+    )
+    result = flows.recompute_signals.fn()
+    assert result == {"rows_written": 22}
+    assert finished == {"status": "success", "rows_written": 22}
+
+
 def test_pin_quantis_prefect_env_points_at_project_server(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("PREFECT_API_URL", raising=False)
     monkeypatch.delenv("PREFECT_HOME", raising=False)

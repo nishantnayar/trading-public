@@ -195,11 +195,21 @@ rationale and the parameter comparison that picked these defaults.
   pulled down by sectors with no exploitable trend (see above). Prior to this, the
   repo traded each symbol independently with no portfolio construction, so it
   captured neither the diversification benefit nor avoided the median symbol's drag.
-- **Portfolio construction is still the simplest possible: equal weight, no caps, no
-  vol targeting.** Every currently-long name gets 1/N of the book, full stop — no
-  per-name cap, no sector cap (so the sector concentration above flows straight
-  through into concentration risk), no volatility targeting. The -37% max drawdown is
-  a real number for an unconstrained equal-weight book, not a modeling artifact.
+- **An optional sector cap meaningfully improves the unconstrained book.**
+  `quantis.signals.portfolio.daily_book_returns`/`portfolio_summary` take
+  `max_sector_weight` (`uv run python -m quantis.signals --portfolio --sector-cap
+  0.25`). At a 25% cap, over the same full history: **max drawdown improves from
+  -37.0% to -20.4%, Sharpe improves from 0.59 to 0.64**, at a small cost to CAGR
+  (8.2% → 7.9%) and average exposure (78.3% → 72.3%). The cap works by scaling down
+  an over-cap sector's names to exactly the cap and **not reallocating the freed
+  weight elsewhere** — a capped day is a smaller, less-than-fully-invested book, not
+  a fully-invested one with different proportions. A real allocator might reinvest
+  that freed capital in under-cap sectors instead (an iterative water-filling pass,
+  since capping one sector can push another over); this deliberately doesn't, so the
+  improvement shown is a conservative floor, not the best a sector cap could do.
+- **No per-name cap, no volatility targeting.** Within a sector (capped or not),
+  every long name still gets an equal 1/N-of-sector share — no single-name limit, no
+  vol-scaling of position size.
 - **The 25.2x annualized turnover estimate is an approximation**, not an exact
   portfolio accounting: it's total position-change events across the universe,
   divided by twice the average book size, annualized — treats every name as an equal

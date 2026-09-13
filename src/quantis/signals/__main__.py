@@ -9,6 +9,7 @@ uv run python -m quantis.signals --persist
 uv run python -m quantis.signals --sectors
 uv run python -m quantis.signals --regime
 uv run python -m quantis.signals --portfolio
+uv run python -m quantis.signals --portfolio --sector-cap 0.25
 """
 
 from __future__ import annotations
@@ -25,7 +26,7 @@ from quantis.signals.backtest import (
     sector_breakdown,
 )
 from quantis.signals.engine import latest_signals, persist_latest_signals
-from quantis.signals.portfolio import portfolio_summary
+from quantis.signals.portfolio import PortfolioResult, portfolio_summary
 
 _ROW = (
     "{symbol:<8}{strategy:>10.1%} {net:>10.1%} {buy_hold:>11.1%} "
@@ -138,18 +139,29 @@ def _print_regime(cost_bps: float) -> None:
         print(f"{r.year:<6}{r.return_pct:>9.1%} {r.avg_names_long:>11.1f} {r.trading_days:>14}")
 
 
-def _print_portfolio(cost_bps: float) -> None:
-    r = portfolio_summary(cost_bps_per_side=cost_bps)
-    print(f"period: {r.start} .. {r.end}  ({r.trading_days} trading days)")
-    print(f"cost model: {cost_bps:.1f} bps per side")
-    print("construction: equal-weight across every currently-long name, rebalanced daily\n")
+def _print_one_portfolio(r: PortfolioResult) -> None:
     print(f"{'total return':<20}{r.total_return:>10.1%}")
     print(f"{'CAGR':<20}{r.cagr:>10.1%}")
     print(f"{'annualized vol':<20}{r.ann_vol:>10.1%}")
     print(f"{'Sharpe':<20}{r.sharpe:>10.2f}")
     print(f"{'max drawdown':<20}{r.max_drawdown:>10.1%}")
     print(f"{'avg names long':<20}{r.avg_names_long:>10.1f}")
+    print(f"{'avg exposure':<20}{r.avg_exposure:>10.1%}")
     print(f"{'annualized turnover':<20}{r.annualized_turnover:>9.1f}x")
+
+
+def _print_portfolio(cost_bps: float, sector_cap: float | None) -> None:
+    uncapped = portfolio_summary(cost_bps_per_side=cost_bps)
+    print(f"period: {uncapped.start} .. {uncapped.end}  ({uncapped.trading_days} trading days)")
+    print(f"cost model: {cost_bps:.1f} bps per side\n")
+
+    print("-- equal-weight, no sector cap --")
+    _print_one_portfolio(uncapped)
+
+    if sector_cap is not None:
+        capped = portfolio_summary(cost_bps_per_side=cost_bps, max_sector_weight=sector_cap)
+        print(f"\n-- equal-weight, {sector_cap:.0%} sector cap --")
+        _print_one_portfolio(capped)
 
 
 if __name__ == "__main__":
@@ -178,6 +190,13 @@ if __name__ == "__main__":
         help="full-period backtest of the equal-weight portfolio construction",
     )
     parser.add_argument(
+        "--sector-cap",
+        type=float,
+        default=None,
+        metavar="FRACTION",
+        help="with --portfolio, also show a run capped at this sector weight (e.g. 0.25)",
+    )
+    parser.add_argument(
         "--cost-bps",
         type=float,
         default=10.0,
@@ -194,7 +213,7 @@ if __name__ == "__main__":
     elif args.regime:
         _print_regime(cost_bps=args.cost_bps)
     elif args.portfolio:
-        _print_portfolio(cost_bps=args.cost_bps)
+        _print_portfolio(cost_bps=args.cost_bps, sector_cap=args.sector_cap)
     elif args.persist:
         n = persist_latest_signals()
         print(f"wrote {n} signal rows")

@@ -63,8 +63,12 @@ per-symbol tuning — backtesting an **equal-weight book of every currently-long
 (`uv run python -m quantis.signals --portfolio`) over the full ingested history
 (2017-11-15 → today) returns **75.1% total / 8.2% CAGR at Sharpe 0.59**, max drawdown
 -37%, ~25x annualized turnover — diversification recovers real value the per-symbol
-view was hiding. See [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the full,
-honest caveats (no sector caps, no vol targeting, no shorting, no execution).
+view was hiding. A 25% sector cap (`--sector-cap 0.25`), which scales an over-cap
+sector down without reallocating the freed weight, cuts max drawdown to **-20.4%**
+and improves Sharpe to **0.64** at a small cost in CAGR (7.9%) — the concentration
+risk Energy/Tech dominance implied was real. See
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for the full, honest caveats (no
+per-name cap, no vol targeting, no shorting, no execution).
 
 ---
 

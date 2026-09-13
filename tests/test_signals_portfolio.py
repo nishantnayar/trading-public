@@ -7,6 +7,7 @@ import pandas as pd
 import pytest
 
 import quantis.signals.backtest as backtest_module
+import quantis.signals.portfolio as portfolio_module
 from quantis.signals.portfolio import daily_book_returns, portfolio_summary
 from quantis.signals.rules import TrendParams
 
@@ -65,3 +66,66 @@ def test_portfolio_summary_sustained_uptrend_is_profitable(
     assert result.sharpe > 0
     assert result.avg_names_long <= 1.0
     assert result.max_drawdown <= 0.0  # a drawdown series is always <= 0
+
+
+def _three_identical_tech_names(monkeypatch: pytest.MonkeyPatch) -> pd.DataFrame:
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["A", "B", "C"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+    monkeypatch.setattr(
+        portfolio_module,
+        "_symbol_sectors",
+        lambda symbols: {"A": "Tech", "B": "Tech", "C": "Tech"},
+    )
+    return df
+
+
+def test_uncapped_book_is_fully_invested_when_names_are_long(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _three_identical_tech_names(monkeypatch)
+    daily = daily_book_returns(params=TrendParams(fast=10, slow=50))
+    long_days = daily[daily["n_long"] > 0]
+    assert not long_days.empty
+    assert np.allclose(long_days["exposure"], 1.0)
+
+
+def test_sector_cap_reduces_exposure_when_one_sector_dominates(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # All three names are the same sector, so an uncapped day is 100% Tech;
+    # capping Tech at 50% should cut exposure on those days to exactly 0.5,
+    # not reallocate the freed weight elsewhere.
+    _three_identical_tech_names(monkeypatch)
+    daily = daily_book_returns(params=TrendParams(fast=10, slow=50), max_sector_weight=0.5)
+    long_days = daily[daily["n_long"] > 0]
+    assert not long_days.empty
+    assert np.allclose(long_days["exposure"], 0.5)
+
+
+def test_sector_cap_leaves_an_uncrowded_sector_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["A", "B"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+    monkeypatch.setattr(
+        portfolio_module, "_symbol_sectors", lambda symbols: {"A": "Tech", "B": "Energy"}
+    )
+    # Each sector has exactly one name at 1/2 = 50% weight; a 60% cap should
+    # not touch either one.
+    daily = daily_book_returns(params=TrendParams(fast=10, slow=50), max_sector_weight=0.6)
+    long_days = daily[daily["n_long"] > 0]
+    assert not long_days.empty
+    assert np.allclose(long_days["exposure"], 1.0)
+
+
+def test_sector_cap_lowers_avg_exposure_in_portfolio_summary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _three_identical_tech_names(monkeypatch)
+    uncapped = portfolio_summary(params=TrendParams(fast=10, slow=50))
+    capped = portfolio_summary(params=TrendParams(fast=10, slow=50), max_sector_weight=0.5)
+    # Every long day goes from 100% to 50% exposure, so the full-period
+    # (including flat/warm-up days) average should exactly halve too.
+    assert capped.avg_exposure == pytest.approx(uncapped.avg_exposure * 0.5)
+    assert capped.max_sector_weight == 0.5
+    assert uncapped.max_sector_weight is None

@@ -111,6 +111,41 @@ def test_pin_quantis_prefect_env_points_at_project_server(monkeypatch: pytest.Mo
     assert os.environ["PREFECT_HOME"].endswith(".prefect")
 
 
+def test_apply_deployments_registers_all_four_flows_in_cron_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`to_deployment()` builds a `RunnerDeployment` purely locally - only
+    `.apply()` hits the Prefect API - so this stubs that one method and
+    asserts the cron schedule without needing a live server.
+    """
+    from prefect.client.schemas.schedules import CronSchedule
+    from prefect.deployments.runner import RunnerDeployment
+
+    from quantis.orchestration.serve import apply_deployments
+
+    def cron_of(d: RunnerDeployment) -> str:
+        assert d.schedules is not None
+        schedule = d.schedules[0].schedule
+        assert isinstance(schedule, CronSchedule)
+        return schedule.cron
+
+    applied: list[RunnerDeployment] = []
+    monkeypatch.setattr(RunnerDeployment, "apply", lambda self, **kw: applied.append(self))
+
+    apply_deployments("quantis-ingestion")
+
+    by_name = {d.name: d for d in applied}
+    assert set(by_name) == {"daily-ingest", "daily-signals", "daily-portfolio", "daily-rebalance"}
+    for d in applied:
+        assert d.work_pool_name == "quantis-ingestion"
+        assert cron_of(d).endswith("* * 1-5")  # weekdays only
+
+    # Each stage runs after the last, in the order ingest -> signals -> portfolio -> rebalance.
+    minutes = [int(cron_of(by_name[n]).split()[0]) for n in by_name]
+    assert minutes == sorted(minutes)
+    assert by_name["daily-rebalance"].flow_name == "rebalance-simulated"
+
+
 def test_ensure_work_pool_swallows_already_exists(monkeypatch: pytest.MonkeyPatch) -> None:
     from prefect.exceptions import ObjectAlreadyExists
 

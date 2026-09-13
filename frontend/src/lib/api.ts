@@ -64,6 +64,7 @@ export type PortfolioSnapshot = {
   annualized_turnover: number;
   max_sector_weight: number | null;
   reallocated: boolean;
+  max_name_weight: number | null;
   vol_target: number | null;
   avg_leverage: number;
   computed_at: string | null;

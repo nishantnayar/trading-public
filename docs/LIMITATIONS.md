@@ -215,8 +215,23 @@ rationale and the parameter comparison that picked these defaults.
   trusting the live-DB numbers. Reproduce any row:
   `uv run python -m quantis.signals --portfolio --sector-cap 0.15` (add
   `--no-cap` or `--no-reallocate` for the other variants).
-- **No per-name cap.** Within a sector (capped or not), every long name still gets an
-  equal 1/N-of-sector share — no single-name limit.
+- **A per-name cap exists (`max_name_weight` / `--name-cap`) but is off by default —
+  it also made things slightly worse, never better, at every level tried.** Applied
+  after the sector cap: any name whose weight would exceed `max_name_weight` is
+  scaled down to the cap, with the same `reallocate` choice (redistribute the
+  excess to under-cap names via water-filling, or leave it uninvested) as the
+  sector cap. At 3% and 1% caps on the live universe (avg breadth ~175 names, so
+  equal weight is usually ~0.5-1% and rarely near even a 1% cap): CAGR 7.4-7.6% and
+  Sharpe 0.63-0.64, both fractionally below the 0.65/7.7% baseline (15% sector cap,
+  reallocated, no name cap). The cap does bind on real days — the breadth
+  distribution has a long left tail (25th percentile is just 1 name long, both from
+  the sparse pre-2020 universe and genuine low-breadth periods like the 2020 COVID
+  crash) — but concentrating capital in the only 1-2 names actually in an uptrend
+  during a genuine drawdown isn't something diversification can fix without also
+  cutting exposure outright, so capping it here trims a little of what upside there
+  was without meaningfully reducing risk. Kept off by default for the same reason as
+  vol targeting: a knob that doesn't help shouldn't ship turned on. Reproduce:
+  `uv run python -m quantis.signals --portfolio --name-cap 0.03`.
 - **Volatility targeting exists (`vol_target` / `--vol-target`) but is off by
   default — it made every metric tested worse, not better, and that's a real result,
   not an unfinished feature.** It scales the whole book's daily return by

@@ -9,9 +9,11 @@ import pytest
 import quantis.signals.backtest as backtest_module
 import quantis.signals.portfolio as portfolio_module
 from quantis.signals.portfolio import (
+    DEFAULT_MAX_NAME_WEIGHT,
     DEFAULT_MAX_SECTOR_WEIGHT,
     DEFAULT_REALLOCATE,
     DEFAULT_VOL_TARGET,
+    _apply_name_cap,
     _vol_target_leverage,
     _water_fill_sector_weights,
     daily_book_returns,
@@ -293,3 +295,64 @@ def test_portfolio_summary_records_vol_target_and_scales_leverage(
     assert no_target.avg_leverage == pytest.approx(1.0)
     assert with_target.vol_target == 0.10
     assert with_target.avg_leverage != pytest.approx(1.0)
+
+
+def test_name_cap_is_off_by_default() -> None:
+    assert DEFAULT_MAX_NAME_WEIGHT is None
+
+
+def test_apply_name_cap_returns_unchanged_when_disabled() -> None:
+    long_days = pd.DataFrame({"date": ["2024-01-01"] * 2, "symbol": ["A", "B"]})
+    weight = pd.Series([0.5, 0.5])
+    result = _apply_name_cap(weight, long_days, max_name_weight=None, reallocate=False)
+    assert (result == weight).all()
+
+
+def test_apply_name_cap_clips_without_reallocating() -> None:
+    long_days = pd.DataFrame({"date": ["2024-01-01"] * 3, "symbol": ["A", "B", "C"]})
+    weight = pd.Series([0.5, 0.3, 0.2])
+    result = _apply_name_cap(weight, long_days, max_name_weight=0.3, reallocate=False)
+    assert list(result) == [pytest.approx(0.3), pytest.approx(0.3), pytest.approx(0.2)]
+    assert result.sum() == pytest.approx(0.8)  # excess dropped, not reallocated
+
+
+def test_apply_name_cap_reallocates_via_water_fill() -> None:
+    # 0.5/0.3/0.2 summing to 1.0, cap 0.3: name A (0.5) is pinned first: the
+    # remaining 0.7 re-proposed between B/C (0.3/0.2 raw) gives B=0.42, which
+    # is also over cap and gets pinned at 0.3; the last 0.4 all goes to C,
+    # also over cap, pinned at 0.3. All three end up at the cap - 3*0.3=0.9,
+    # not the full 1.0, since three names can't fit above a 0.3 cap each.
+    long_days = pd.DataFrame({"date": ["2024-01-01"] * 3, "symbol": ["A", "B", "C"]})
+    weight = pd.Series([0.5, 0.3, 0.2])
+    result = _apply_name_cap(
+        long_days=long_days, weight=weight, max_name_weight=0.3, reallocate=True
+    )
+    assert list(result) == [pytest.approx(0.3), pytest.approx(0.3), pytest.approx(0.3)]
+    assert result.sum() == pytest.approx(0.9)
+
+
+def test_name_cap_binds_on_a_low_breadth_day(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Only 2 names in the universe -> equal weight is 0.5 each, well above a
+    # 30% per-name cap, and there's no sector cap in play (max_sector_weight
+    # is None) so the name cap is the only thing doing anything here.
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["A", "B"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+
+    daily = daily_book_returns(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=None, max_name_weight=0.3
+    )
+    long_days = daily[daily["n_long"] > 0]
+    assert not long_days.empty
+    assert np.allclose(long_days["exposure"], 0.6)  # 0.3 cap x 2 names, not reallocated
+
+
+def test_portfolio_summary_records_max_name_weight(monkeypatch: pytest.MonkeyPatch) -> None:
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["A", "B"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+
+    result = portfolio_summary(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=None, max_name_weight=0.3
+    )
+    assert result.max_name_weight == 0.3

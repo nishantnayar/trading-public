@@ -192,6 +192,7 @@ class PortfolioSnapshot(Base):
     annualized_turnover: Mapped[float] = mapped_column(Numeric(18, 4))
     max_sector_weight: Mapped[float | None] = mapped_column(Numeric(18, 6))
     reallocated: Mapped[bool] = mapped_column(Boolean, default=True)
+    max_name_weight: Mapped[float | None] = mapped_column(Numeric(18, 6))
     vol_target: Mapped[float | None] = mapped_column(Numeric(18, 6))
     avg_leverage: Mapped[float] = mapped_column(Numeric(18, 6), default=1.0)
     computed_at: Mapped[dt.datetime] = mapped_column(

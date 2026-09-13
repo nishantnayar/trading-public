@@ -13,6 +13,7 @@ uv run python -m quantis.signals --portfolio --sector-cap 0.25
 uv run python -m quantis.signals --portfolio --no-cap
 uv run python -m quantis.signals --portfolio --no-reallocate
 uv run python -m quantis.signals --portfolio --vol-target 0.10
+uv run python -m quantis.signals --portfolio --name-cap 0.03
 """
 
 from __future__ import annotations
@@ -164,17 +165,19 @@ def _print_portfolio(
     cost_bps: float,
     sector_cap: float | None,
     reallocate: bool,
+    name_cap: float | None,
     vol_target: float | None,
     vol_lookback: int,
     max_leverage: float,
 ) -> None:
     """Default construction (equal-weight, `sector_cap`-capped, reallocated
-    unless disabled, optionally vol-targeted) first, then pure equal-weight
-    for reference."""
+    unless disabled, optionally name-capped and/or vol-targeted) first, then
+    pure equal-weight for reference."""
     default = portfolio_summary(
         cost_bps_per_side=cost_bps,
         max_sector_weight=sector_cap,
         reallocate=reallocate,
+        max_name_weight=name_cap,
         vol_target=vol_target,
         vol_lookback_days=vol_lookback,
         max_leverage=max_leverage,
@@ -184,13 +187,14 @@ def _print_portfolio(
 
     cap_label = f"{sector_cap:.0%} sector cap" if sector_cap is not None else "no sector cap"
     realloc_label = "reallocated" if reallocate and sector_cap is not None else "not reallocated"
+    name_label = f", {name_cap:.0%} name cap" if name_cap is not None else ""
     vol_label = f", {vol_target:.0%} vol target" if vol_target is not None else ""
-    print(f"-- default: equal-weight, {cap_label}, {realloc_label}{vol_label} --")
+    print(f"-- default: equal-weight, {cap_label}, {realloc_label}{name_label}{vol_label} --")
     _print_one_portfolio(default)
 
-    if sector_cap is not None or vol_target is not None:
+    if sector_cap is not None or name_cap is not None or vol_target is not None:
         uncapped = portfolio_summary(cost_bps_per_side=cost_bps, max_sector_weight=None)
-        print("\n-- for reference: equal-weight, no sector cap, no vol target --")
+        print("\n-- for reference: equal-weight, no sector cap, no name cap, no vol target --")
         _print_one_portfolio(uncapped)
 
 
@@ -239,6 +243,14 @@ if __name__ == "__main__":
         "of reallocating it to under-cap sectors (default: reallocate)",
     )
     parser.add_argument(
+        "--name-cap",
+        type=float,
+        default=None,
+        metavar="FRACTION",
+        help="with --portfolio, also cap any single name's weight at this fraction "
+        "(e.g. 0.03), applied after the sector cap; off by default",
+    )
+    parser.add_argument(
         "--vol-target",
         type=float,
         default=None,
@@ -281,6 +293,7 @@ if __name__ == "__main__":
             cost_bps=args.cost_bps,
             sector_cap=None if args.no_cap else args.sector_cap,
             reallocate=not args.no_reallocate,
+            name_cap=args.name_cap,
             vol_target=args.vol_target,
             vol_lookback=args.vol_lookback,
             max_leverage=args.max_leverage,

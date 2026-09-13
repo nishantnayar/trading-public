@@ -71,11 +71,12 @@ per-symbol view was hiding, and capping the sector concentration found above cut
 uncapped book's -37% drawdown by half. These defaults were chosen by comparing cap
 levels and reallocation on/off (`--no-cap`, `--no-reallocate`) against the live
 universe — see [`docs/PROGRESS.md`](docs/PROGRESS.md) Phases 15-17 for the full
-comparison. Volatility targeting also exists (`--vol-target`) but is **off by
-default — it made Sharpe worse in every configuration tried** (Phase 20); kept
-available rather than hidden, but not something to turn on by default. See
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for that and the other honest
-caveats (no per-name cap, no shorting, no execution).
+comparison. Volatility targeting (`--vol-target`, Phase 20) and a per-name cap
+(`--name-cap`, Phase 21) both exist but are **off by default — both made every
+metric tested slightly worse, never better**; kept available rather than hidden,
+but not something to turn on by default. See
+[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md) for why, and the other honest
+caveats (no shorting, no execution).
 
 ---
 

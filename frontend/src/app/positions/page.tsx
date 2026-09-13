@@ -37,6 +37,7 @@ export default function PositionsPage() {
             label="ILLUSTRATIVE BOOK"
             right={
               <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 10, color: C.t4 }}>
+                {longs.length > 0 ? `${longs.length} names · ` : ""}
                 {rows[0]?.date ? `as of ${rows[0].date}` : "NO SIGNALS PUBLISHED"}
               </span>
             }
@@ -50,26 +51,28 @@ export default function PositionsPage() {
               No watchlist symbol is currently signaled long.
             </div>
           ) : (
-            <table style={{ fontFamily: MONO, fontSize: 12, width: "100%" }}>
-              <thead>
-                <tr style={{ fontSize: 10, letterSpacing: "0.1em", borderBottom: `1px solid ${C.border}` }}>
-                  <th style={{ ...TH, padding: "7px 10px 7px 14px", textAlign: "left" }}>TICKER</th>
-                  <th style={{ ...TH, textAlign: "right" }}>CLOSE</th>
-                  <th style={{ ...TH, padding: "7px 14px 7px 10px", textAlign: "right" }}>WEIGHT</th>
-                </tr>
-              </thead>
-              <tbody>
-                {longs.map((r) => (
-                  <tr key={r.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
-                    <td style={{ padding: "0 10px 0 14px", color: C.text }}>{r.symbol}</td>
-                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{r.close.toFixed(2)}</td>
-                    <td style={{ padding: "0 14px 0 10px", textAlign: "right", color: C.pos }}>
-                      {(weight * 100).toFixed(1)}%
-                    </td>
+            <div style={{ maxHeight: 420, overflowY: "auto" }}>
+              <table style={{ fontFamily: MONO, fontSize: 12, width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ fontSize: 10, letterSpacing: "0.1em" }}>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "7px 10px 7px 14px", textAlign: "left" }}>TICKER</th>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>CLOSE</th>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "7px 14px 7px 10px", textAlign: "right" }}>WEIGHT</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {longs.map((r) => (
+                    <tr key={r.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
+                      <td style={{ padding: "0 10px 0 14px", color: C.text }}>{r.symbol}</td>
+                      <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{r.close.toFixed(2)}</td>
+                      <td style={{ padding: "0 14px 0 10px", textAlign: "right", color: C.pos }}>
+                        {(weight * 100).toFixed(1)}%
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <Note>EQUAL-WEIGHTED DISPLAY · not sector-capped · not a broker position</Note>
         </Panel>

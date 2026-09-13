@@ -62,16 +62,59 @@ def test_trades_below_min_notional_are_skipped() -> None:
     assert plan.positions["A"] == pytest.approx(9.9999)
 
 
-def test_symbol_with_no_price_is_left_untouched() -> None:
+def test_unpriced_symbol_is_left_untouched_and_reported() -> None:
     plan = _plan_rebalance(
         weights={"A": 1.0},
         current_qty={"A": 5.0},
-        prices={},  # no price available for A this run
+        prices={},  # no valid price available for A this run
+        cash=0.0,
+    )
+    assert plan.fills == []
+    assert plan.positions["A"] == pytest.approx(5.0)  # left exactly as held, not force-sold
+    assert plan.equity == pytest.approx(0.0)  # excluded from equity, not valued at 0 silently
+    assert plan.unpriced_symbols == ("A",)
+
+
+def test_unpriced_symbol_is_never_dropped_as_dust() -> None:
+    # A near-zero holding would normally be swept as dust, but an unpriced
+    # position must never be - "untouched" has to mean untouched.
+    plan = _plan_rebalance(
+        weights={},
+        current_qty={"A": 1e-12},
+        prices={},
+        cash=0.0,
+    )
+    assert plan.positions == {"A": 1e-12}
+    assert plan.unpriced_symbols == ("A",)
+
+
+def test_non_positive_price_is_treated_as_unpriced() -> None:
+    # Defensive: a bad data row (close <= 0) shouldn't reach here via
+    # _latest_prices, but this function must not divide by zero or trade on
+    # a nonsense price if it does.
+    plan = _plan_rebalance(
+        weights={"A": 1.0},
+        current_qty={"A": 5.0},
+        prices={"A": 0.0},
         cash=0.0,
     )
     assert plan.fills == []
     assert plan.positions["A"] == pytest.approx(5.0)
-    assert plan.equity == pytest.approx(0.0)  # unpriced position marked at 0
+    assert plan.unpriced_symbols == ("A",)
+
+
+def test_unpriced_target_only_symbol_is_skipped_without_being_reported() -> None:
+    # Not currently held, so it's not a "gap in a monitored position" - just
+    # a target that can't be entered yet. Only unpriced *holdings* are
+    # reported via unpriced_symbols.
+    plan = _plan_rebalance(
+        weights={"A": 1.0, "B": 1.0},
+        current_qty={},
+        prices={"A": 100.0},  # no price for B
+        cash=1000.0,
+    )
+    assert "B" not in plan.positions
+    assert plan.unpriced_symbols == ()
 
 
 def test_equity_is_conserved_across_a_rebalance() -> None:

@@ -17,7 +17,10 @@ const TH: React.CSSProperties = { padding: "7px 10px", fontWeight: 400, color: C
 export default function BrokerPage() {
   const broker = useApi<BrokerState | null>("/broker");
   const b = broker.data;
-  const positions = [...(b?.positions ?? [])].sort((a, c) => c.market_value - a.market_value);
+  const positions = [...(b?.positions ?? [])].sort(
+    (a, c) => (c.market_value ?? 0) - (a.market_value ?? 0)
+  );
+  const unpriced = b?.unpriced_symbols ?? [];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
@@ -34,6 +37,14 @@ export default function BrokerPage() {
           </div>
         ))}
       </div>
+
+      {unpriced.length > 0 && (
+        <div style={{ border: `1px solid ${C.accent}`, background: C.warnBg, padding: "10px 14px", fontFamily: MONO, fontSize: 11, color: C.accent2 }}>
+          {unpriced.length} held position{unpriced.length > 1 ? "s" : ""} with no valid price
+          ({unpriced.join(", ")}) — excluded from equity, left untouched rather than sold at a
+          stale mark.
+        </div>
+      )}
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.6fr) minmax(280px,1fr)", gap: 14, alignItems: "start" }}>
         <Panel>
@@ -60,18 +71,23 @@ export default function BrokerPage() {
               <tbody>
                 {positions.map((p) => (
                   <tr key={p.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
-                    <td style={{ padding: "0 10px 0 14px", color: C.text }}>{p.symbol}</td>
+                    <td style={{ padding: "0 10px 0 14px", color: p.stale ? C.accent2 : C.text }}>
+                      {p.symbol}
+                      {p.stale && <span style={{ marginLeft: 6, fontSize: 9, color: C.accent2 }}>STALE</span>}
+                    </td>
                     <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{p.qty.toFixed(3)}</td>
                     <td style={{ padding: "0 10px", textAlign: "right", color: C.t3 }}>{p.price?.toFixed(2) ?? "—"}</td>
                     <td style={{ padding: "0 14px 0 10px", textAlign: "right", color: C.text }}>
-                      ${p.market_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                      {p.market_value != null
+                        ? `$${p.market_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                        : "—"}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           )}
-          <Note>SIMULATED · fills at the latest close · fractional shares · no real order ever submitted</Note>
+          <Note>SIMULATED · fills at the latest close · fractional shares · no real order ever submitted · a stale (unpriced) position is excluded from equity and left untouched, never sold at a bad mark</Note>
         </Panel>
 
         <Panel>

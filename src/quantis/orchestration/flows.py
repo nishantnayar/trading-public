@@ -147,12 +147,20 @@ def rebalance_paper() -> dict:
     run_id = start_ingest_run("rebalance-simulated")
     try:
         result = rebalance_simulated()
+        detail = f"equity={result.equity:.0f} cash={result.cash:.0f}"
+        if result.unpriced_symbols:
+            detail += f" unpriced={','.join(result.unpriced_symbols)}"
+            logger.warning(
+                "{} held position(s) have no valid price and were skipped: {}",
+                len(result.unpriced_symbols),
+                result.unpriced_symbols,
+            )
         finish_ingest_run(
             run_id,
             status="success",
             symbols_processed=result.n_positions,
             rows_written=result.n_fills,
-            detail=f"equity={result.equity:.0f} cash={result.cash:.0f}",
+            detail=detail,
         )
         logger.info("simulated rebalance: {}", result)
         return {
@@ -160,6 +168,7 @@ def rebalance_paper() -> dict:
             "cash": result.cash,
             "n_fills": result.n_fills,
             "n_positions": result.n_positions,
+            "unpriced_symbols": list(result.unpriced_symbols),
         }
     except Exception as exc:
         finish_ingest_run(run_id, status="failed", detail=str(exc))

@@ -265,13 +265,19 @@ rationale and the parameter comparison that picked these defaults.
   and the Broker screen read the current ledger; `daily-rebalance` (17:40 weekdays)
   recomputes it. Positions traded down to ~0 (dropped from the book, or capped out)
   are removed rather than carried as dust.
-- **A symbol with no current price is silently skipped, not liquidated.** If a
-  held name stops getting bars (delisted, ingestion gap), the rebalance leaves its
-  position untouched and excludes it from the equity mark until a price
-  reappears — it neither trades nor is valued, rather than erroring or forcing a
-  sale at a stale price. Rare in practice (the same universe backing the signal
-  layer is what gets ingested), but a real gap this would need explicit handling
-  for.
+- **A symbol with no valid price is explicitly flagged, not silently skipped.**
+  `_latest_prices` only ever returns a `close > 0` row (a corrupt zero/negative
+  print can't masquerade as "the price"), with no recency cutoff — a symbol that
+  stopped getting fresh bars still marks at its last known good close rather than
+  disappearing. Only a symbol with **no valid bar at all** counts as unpriced: its
+  held position is left exactly as-is (never force-sold, never swept as "dust"
+  even at a near-zero quantity) and excluded from the equity calculation — not
+  silently valued at 0, which would understate equity and under-size every other
+  target trade that rebalance. `RebalanceResult.unpriced_symbols` and
+  `account_state()["unpriced_symbols"]` report it; the Prefect flow logs a warning
+  and records it in `ingest_runs.detail`; the Broker screen shows a banner and
+  tags the position `STALE`. Rare in practice (the same universe backing the
+  signal layer is what gets ingested), but no longer invisible if it happens.
 
 ## Universe
 

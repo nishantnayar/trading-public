@@ -56,6 +56,7 @@ def test_rebalance_paper_records_success(monkeypatch: pytest.MonkeyPatch) -> Non
         cash = 0.0
         n_fills = 12
         n_positions = 150
+        unpriced_symbols: tuple[str, ...] = ()
 
     monkeypatch.setattr(flows, "rebalance_simulated", lambda: _FakeResult())
     monkeypatch.setattr(flows, "start_ingest_run", lambda *a, **k: 1)
@@ -64,10 +65,38 @@ def test_rebalance_paper_records_success(monkeypatch: pytest.MonkeyPatch) -> Non
         flows, "finish_ingest_run", lambda run_id, **kwargs: finished.update(kwargs)
     )
     result = flows.rebalance_paper.fn()
-    assert result == {"equity": 100_000.0, "cash": 0.0, "n_fills": 12, "n_positions": 150}
+    assert result == {
+        "equity": 100_000.0,
+        "cash": 0.0,
+        "n_fills": 12,
+        "n_positions": 150,
+        "unpriced_symbols": [],
+    }
     assert finished["status"] == "success"
     assert finished["symbols_processed"] == 150
     assert finished["rows_written"] == 12
+    assert "unpriced" not in str(finished["detail"])
+
+
+def test_rebalance_paper_flags_unpriced_symbols_in_detail(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _FakeResult:
+        equity = 100_000.0
+        cash = 0.0
+        n_fills = 12
+        n_positions = 150
+        unpriced_symbols: tuple[str, ...] = ("ZZZZ",)
+
+    monkeypatch.setattr(flows, "rebalance_simulated", lambda: _FakeResult())
+    monkeypatch.setattr(flows, "start_ingest_run", lambda *a, **k: 1)
+    finished: dict[str, object] = {}
+    monkeypatch.setattr(
+        flows, "finish_ingest_run", lambda run_id, **kwargs: finished.update(kwargs)
+    )
+    result = flows.rebalance_paper.fn()
+    assert result["unpriced_symbols"] == ["ZZZZ"]
+    assert "ZZZZ" in str(finished["detail"])
 
 
 def test_pin_quantis_prefect_env_points_at_project_server(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -74,7 +74,9 @@ export type BrokerPosition = {
   symbol: string;
   qty: number;
   price: number | null;
-  market_value: number;
+  market_value: number | null;
+  /** No valid price was ever found for this symbol — excluded from equity, not traded. */
+  stale: boolean;
 };
 
 export type BrokerFill = {
@@ -91,6 +93,8 @@ export type BrokerState = {
   cash: number;
   equity: number;
   updated_at: string | null;
+  /** Held symbols with no valid price this run — excluded from equity, left untouched. */
+  unpriced_symbols: string[];
   positions: BrokerPosition[];
   recent_fills: BrokerFill[];
 };

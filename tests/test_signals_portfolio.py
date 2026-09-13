@@ -11,6 +11,8 @@ import quantis.signals.portfolio as portfolio_module
 from quantis.signals.portfolio import (
     DEFAULT_MAX_SECTOR_WEIGHT,
     DEFAULT_REALLOCATE,
+    DEFAULT_VOL_TARGET,
+    _vol_target_leverage,
     _water_fill_sector_weights,
     daily_book_returns,
     portfolio_summary,
@@ -224,3 +226,70 @@ def test_portfolio_summary_applies_default_cap_and_reallocation_when_unspecified
     assert default_result.avg_exposure != pytest.approx(uncapped_result.avg_exposure)
     assert default_result.max_sector_weight == 0.15
     assert default_result.reallocated is True
+
+
+def test_vol_targeting_is_off_by_default() -> None:
+    assert DEFAULT_VOL_TARGET is None
+
+
+def test_vol_target_leverage_matches_target_over_realized_ratio() -> None:
+    # Alternating +-1% returns has an exact population std of 0.01, so the
+    # annualized trailing vol is deterministic: 0.01 * sqrt(252).
+    returns = pd.Series([0.01, -0.01] * 30)
+    realized_annual_vol = 0.01 * np.sqrt(252)
+    leverage = _vol_target_leverage(
+        returns, target_vol=realized_annual_vol, lookback=20, max_leverage=5.0
+    )
+    # Skip the lookback warm-up plus the one-day shift.
+    assert np.allclose(leverage.iloc[25:], 1.0, atol=1e-6)
+
+
+def test_vol_target_leverage_caps_at_max_leverage_in_a_low_vol_regime() -> None:
+    returns = pd.Series([0.001, -0.001] * 30)  # low realized vol
+    leverage = _vol_target_leverage(returns, target_vol=0.20, lookback=20, max_leverage=1.5)
+    assert np.allclose(leverage.iloc[25:], 1.5, atol=1e-6)
+
+
+def test_vol_target_leverage_defaults_to_one_during_warmup() -> None:
+    returns = pd.Series([0.01, -0.01] * 5)  # only 10 rows, less than lookback=20
+    leverage = _vol_target_leverage(returns, target_vol=0.10, lookback=20, max_leverage=1.5)
+    assert (leverage == 1.0).all()
+
+
+def test_vol_target_leverage_never_negative_when_vol_is_zero() -> None:
+    returns = pd.Series([0.0] * 60)  # zero realized vol -> target/0 is inf
+    leverage = _vol_target_leverage(returns, target_vol=0.10, lookback=20, max_leverage=1.5)
+    assert (leverage >= 0).all()
+    assert not leverage.isna().any()
+
+
+def test_daily_book_returns_leverage_column_is_one_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = _uptrend("2023-01-01", 400)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["ONLYNAME"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+
+    daily = daily_book_returns(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=None, vol_target=None
+    )
+    assert (daily["leverage"] == 1.0).all()
+
+
+def test_portfolio_summary_records_vol_target_and_scales_leverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    df = _uptrend("2023-01-01", 500)
+    monkeypatch.setattr(backtest_module, "full_universe", lambda: ["ONLYNAME"])
+    monkeypatch.setattr(backtest_module, "load_price_history", lambda symbol: df)
+
+    no_target = portfolio_summary(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=None, vol_target=None
+    )
+    with_target = portfolio_summary(
+        params=TrendParams(fast=10, slow=50), max_sector_weight=None, vol_target=0.10
+    )
+    assert no_target.vol_target is None
+    assert no_target.avg_leverage == pytest.approx(1.0)
+    assert with_target.vol_target == 0.10
+    assert with_target.avg_leverage != pytest.approx(1.0)

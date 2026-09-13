@@ -23,8 +23,16 @@ meaningfully improves CAGR/Sharpe/exposure over leaving the freed weight
 idle; at a looser 25% cap it barely matters, since few sectors bind that
 hard. See docs/LIMITATIONS.md and docs/PROGRESS.md (Phases 16-17) for the
 comparison. Pass `max_sector_weight=None` for pure equal-weight, or
-`reallocate=False` for the single-pass (no-reallocation) cap. No per-name
-cap, no vol targeting — see docs/LIMITATIONS.md.
+`reallocate=False` for the single-pass (no-reallocation) cap.
+
+Optional volatility targeting (`vol_target`, off by default - see
+`_vol_target_leverage`) scales the whole book's daily return by
+`target / trailing realized vol`, capped at `max_leverage`, using only
+information available the prior day. This is a leverage overlay on top of
+the construction above, not a replacement for it - no margin, financing, or
+execution is modeled, so treat it as "what a levered version of this book
+would have returned," not an investable instruction. No per-name cap — see
+docs/LIMITATIONS.md.
 """
 
 from __future__ import annotations
@@ -46,6 +54,9 @@ from quantis.signals.rules import TrendParams
 
 DEFAULT_MAX_SECTOR_WEIGHT = 0.15
 DEFAULT_REALLOCATE = True
+DEFAULT_VOL_TARGET: float | None = None  # off by default - see module docstring
+DEFAULT_VOL_LOOKBACK_DAYS = 20
+DEFAULT_MAX_LEVERAGE = 1.5
 
 
 @dataclass(frozen=True)
@@ -63,6 +74,8 @@ class PortfolioResult:
     trading_days: int
     max_sector_weight: float | None = None
     reallocated: bool = False
+    vol_target: float | None = None
+    avg_leverage: float = 1.0
 
 
 def _water_fill_sector_weights(counts: pd.Series, cap: float) -> pd.Series:
@@ -147,24 +160,63 @@ def _capped_weights(
     return pd.Series([sector_weight_by_day[k] for k in keys], index=long_days.index)
 
 
+def _vol_target_leverage(
+    net_return: pd.Series,
+    target_vol: float,
+    lookback: int,
+    max_leverage: float,
+) -> pd.Series:
+    """Daily leverage multiplier: `target_vol / trailing realized vol`, capped
+    at `max_leverage` and floored at 0 (never short the book to hit a vol
+    target).
+
+    Trailing vol is the rolling `lookback`-day std of `net_return` as of
+    *yesterday* (`.shift(1)`) so today's scale never uses today's own return -
+    no look-ahead. Before enough history exists (first `lookback` days) or
+    whenever trailing vol is exactly 0 (nothing was long), leverage defaults
+    to 1.0 - unscaled, not "no position."
+    """
+    trailing_vol = net_return.rolling(lookback).std(ddof=0) * np.sqrt(252)
+    trailing_vol = trailing_vol.shift(1)
+    leverage = target_vol / trailing_vol
+    leverage = leverage.replace([np.inf, -np.inf], np.nan)
+    return leverage.clip(lower=0.0, upper=max_leverage).fillna(1.0)
+
+
 def daily_book_returns(
     symbols: list[str] | None = None,
     params: TrendParams | None = None,
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
     max_sector_weight: float | None = DEFAULT_MAX_SECTOR_WEIGHT,
     reallocate: bool = DEFAULT_REALLOCATE,
+    vol_target: float | None = DEFAULT_VOL_TARGET,
+    vol_lookback_days: int = DEFAULT_VOL_LOOKBACK_DAYS,
+    max_leverage: float = DEFAULT_MAX_LEVERAGE,
 ) -> pd.DataFrame:
     """One row per trading day: weighted net/gross return of every
     currently-long name that day (equal-weight, or sector-capped if
     `max_sector_weight` is set — see `_capped_weights`), breadth (`n_long`),
     invested exposure that day (`exposure`, 1.0 unless sector-capped without
-    reallocation), and how many names changed position (`n_trades`). A flat
-    day (nothing long) earns 0, not NaN.
+    reallocation), the day's leverage multiplier (`leverage`, 1.0 unless
+    `vol_target` is set — see `_vol_target_leverage`), and how many names
+    changed position (`n_trades`). A flat day (nothing long) earns 0, not NaN.
+
+    Vol targeting is applied on top of the (already sector-capped) return
+    series — it rescales the whole book's exposure by trailing realized vol,
+    it doesn't touch the per-name weights within a day.
     """
     all_days = universe_daily_frame(symbols, params, cost_bps_per_side)
     if all_days.empty:
         return pd.DataFrame(
-            columns=["date", "net_return", "gross_return", "n_long", "exposure", "n_trades"]
+            columns=[
+                "date",
+                "net_return",
+                "gross_return",
+                "n_long",
+                "exposure",
+                "leverage",
+                "n_trades",
+            ]
         )
 
     long_days = all_days[all_days["position"]].copy()
@@ -181,6 +233,14 @@ def daily_book_returns(
     n_long = long_days.groupby("date").size().reindex(full_index, fill_value=0)
     n_trades = all_days.groupby("date")["trade_flag"].sum().reindex(full_index, fill_value=0)
 
+    if vol_target is not None:
+        leverage = _vol_target_leverage(net_return, vol_target, vol_lookback_days, max_leverage)
+        net_return = net_return * leverage
+        gross_return = gross_return * leverage
+        exposure = exposure * leverage
+    else:
+        leverage = pd.Series(1.0, index=full_index)
+
     return pd.DataFrame(
         {
             "date": full_index,
@@ -188,6 +248,7 @@ def daily_book_returns(
             "gross_return": gross_return.to_numpy(),
             "n_long": n_long.to_numpy(),
             "exposure": exposure.to_numpy(),
+            "leverage": leverage.to_numpy(),
             "n_trades": n_trades.to_numpy(),
         }
     )
@@ -199,12 +260,26 @@ def portfolio_summary(
     cost_bps_per_side: float = DEFAULT_COST_BPS_PER_SIDE,
     max_sector_weight: float | None = DEFAULT_MAX_SECTOR_WEIGHT,
     reallocate: bool = DEFAULT_REALLOCATE,
+    vol_target: float | None = DEFAULT_VOL_TARGET,
+    vol_lookback_days: int = DEFAULT_VOL_LOOKBACK_DAYS,
+    max_leverage: float = DEFAULT_MAX_LEVERAGE,
 ) -> PortfolioResult:
     """Full-period backtest of the book (see module docstring for the default
     construction). Pass `max_sector_weight=None` for pure equal-weight, or
     `reallocate=False` to leave a capped sector's freed weight uninvested
-    instead of redistributing it - see `_capped_weights`."""
-    daily = daily_book_returns(symbols, params, cost_bps_per_side, max_sector_weight, reallocate)
+    instead of redistributing it - see `_capped_weights`. Pass `vol_target`
+    (e.g. 0.10 for 10% annualized) to scale the whole book by trailing
+    realized vol - see `_vol_target_leverage`."""
+    daily = daily_book_returns(
+        symbols,
+        params,
+        cost_bps_per_side,
+        max_sector_weight,
+        reallocate,
+        vol_target,
+        vol_lookback_days,
+        max_leverage,
+    )
     net_return = daily["net_return"]
     n_days = len(daily)
     n_years = n_days / 252
@@ -218,6 +293,7 @@ def portfolio_summary(
     max_drawdown = float(drawdown.min()) if n_days else 0.0
     avg_names_long = float(daily["n_long"].mean()) if n_days else 0.0
     avg_exposure = float(daily["exposure"].mean()) if n_days else 0.0
+    avg_leverage = float(daily["leverage"].mean()) if n_days else 1.0
 
     # Total position-change events across the universe, expressed as a
     # multiple of the book's average size, annualized. A name that enters and
@@ -244,6 +320,8 @@ def portfolio_summary(
         trading_days=n_days,
         max_sector_weight=max_sector_weight,
         reallocated=reallocate,
+        vol_target=vol_target,
+        avg_leverage=avg_leverage,
     )
 
 
@@ -277,5 +355,7 @@ def persist_portfolio_summary(result: PortfolioResult | None = None) -> None:
                 annualized_turnover=result.annualized_turnover,
                 max_sector_weight=result.max_sector_weight,
                 reallocated=result.reallocated,
+                vol_target=result.vol_target,
+                avg_leverage=result.avg_leverage,
             )
         )

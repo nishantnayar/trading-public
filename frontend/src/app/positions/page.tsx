@@ -146,7 +146,7 @@ export default function PositionsPage() {
         )}
         <Note>
           {p
-            ? `EQUAL-WEIGHT · ${p.max_sector_weight != null ? `${(p.max_sector_weight * 100).toFixed(0)}% sector cap` : "no sector cap"}${p.reallocated ? ", reallocated" : ""} · ${p.trading_days} trading days · 10 bps/side cost model`
+            ? `EQUAL-WEIGHT · ${p.max_sector_weight != null ? `${(p.max_sector_weight * 100).toFixed(0)}% sector cap` : "no sector cap"}${p.reallocated ? ", reallocated" : ""}${p.vol_target != null ? ` · ${(p.vol_target * 100).toFixed(0)}% vol target (avg leverage ${p.avg_leverage.toFixed(2)}x)` : ""} · ${p.trading_days} trading days · 10 bps/side cost model`
             : "Full-period backtest of the default portfolio construction (quantis.signals.portfolio) — recomputed daily by the daily-portfolio Prefect flow."}
         </Note>
       </Panel>

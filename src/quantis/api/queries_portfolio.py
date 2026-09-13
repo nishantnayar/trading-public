@@ -25,5 +25,7 @@ def latest_portfolio() -> dict | None:
         "annualized_turnover": float(row.annualized_turnover),
         "max_sector_weight": float(row.max_sector_weight) if row.max_sector_weight else None,
         "reallocated": row.reallocated,
+        "vol_target": float(row.vol_target) if row.vol_target else None,
+        "avg_leverage": float(row.avg_leverage),
         "computed_at": row.computed_at.isoformat() if row.computed_at else None,
     }

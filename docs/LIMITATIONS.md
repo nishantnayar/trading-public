@@ -215,9 +215,24 @@ rationale and the parameter comparison that picked these defaults.
   trusting the live-DB numbers. Reproduce any row:
   `uv run python -m quantis.signals --portfolio --sector-cap 0.15` (add
   `--no-cap` or `--no-reallocate` for the other variants).
-- **No per-name cap, no volatility targeting.** Within a sector (capped or not),
-  every long name still gets an equal 1/N-of-sector share — no single-name limit, no
-  vol-scaling of position size.
+- **No per-name cap.** Within a sector (capped or not), every long name still gets an
+  equal 1/N-of-sector share — no single-name limit.
+- **Volatility targeting exists (`vol_target` / `--vol-target`) but is off by
+  default — it made every metric tested worse, not better, and that's a real result,
+  not an unfinished feature.** It scales the whole book's daily return by
+  `target_vol / trailing realized vol` (capped at `max_leverage`, using only
+  information known the prior day — see `_vol_target_leverage`). Tried against the
+  live universe at several target levels (10%/13%/15%), lookback windows
+  (20/60/120 days), and leverage caps (up to 2.0x): every configuration landed at
+  Sharpe 0.49-0.62, all below the 0.65 baseline (15% sector cap, reallocated, no vol
+  target) — never an improvement. The likely mechanism: trailing realized vol lags
+  a regime shift, so it cuts exposure *after* a trend has already turned choppy
+  (too late to help) and can cut exposure *during* a strong trend simply because
+  the trend itself was volatile (too early, missing the move) - the reverse of what
+  a trend-following overlay wants. This is a case where a standard risk-management
+  technique doesn't transfer cleanly onto this specific signal, worth stating
+  plainly rather than quietly shipping a knob that doesn't help. Reproduce:
+  `uv run python -m quantis.signals --portfolio --vol-target 0.13 --vol-lookback 60`.
 - **The 25.2x annualized turnover estimate is an approximation**, not an exact
   portfolio accounting: it's total position-change events across the universe,
   divided by twice the average book size, annualized — treats every name as an equal

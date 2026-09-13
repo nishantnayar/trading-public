@@ -12,6 +12,7 @@ uv run python -m quantis.signals --portfolio
 uv run python -m quantis.signals --portfolio --sector-cap 0.25
 uv run python -m quantis.signals --portfolio --no-cap
 uv run python -m quantis.signals --portfolio --no-reallocate
+uv run python -m quantis.signals --portfolio --vol-target 0.10
 """
 
 from __future__ import annotations
@@ -29,7 +30,9 @@ from quantis.signals.backtest import (
 )
 from quantis.signals.engine import latest_signals, persist_latest_signals
 from quantis.signals.portfolio import (
+    DEFAULT_MAX_LEVERAGE,
     DEFAULT_MAX_SECTOR_WEIGHT,
+    DEFAULT_VOL_LOOKBACK_DAYS,
     PortfolioResult,
     portfolio_summary,
 )
@@ -153,26 +156,41 @@ def _print_one_portfolio(r: PortfolioResult) -> None:
     print(f"{'max drawdown':<20}{r.max_drawdown:>10.1%}")
     print(f"{'avg names long':<20}{r.avg_names_long:>10.1f}")
     print(f"{'avg exposure':<20}{r.avg_exposure:>10.1%}")
+    print(f"{'avg leverage':<20}{r.avg_leverage:>9.2f}x")
     print(f"{'annualized turnover':<20}{r.annualized_turnover:>9.1f}x")
 
 
-def _print_portfolio(cost_bps: float, sector_cap: float | None, reallocate: bool) -> None:
+def _print_portfolio(
+    cost_bps: float,
+    sector_cap: float | None,
+    reallocate: bool,
+    vol_target: float | None,
+    vol_lookback: int,
+    max_leverage: float,
+) -> None:
     """Default construction (equal-weight, `sector_cap`-capped, reallocated
-    unless disabled) first, then pure equal-weight for reference."""
+    unless disabled, optionally vol-targeted) first, then pure equal-weight
+    for reference."""
     default = portfolio_summary(
-        cost_bps_per_side=cost_bps, max_sector_weight=sector_cap, reallocate=reallocate
+        cost_bps_per_side=cost_bps,
+        max_sector_weight=sector_cap,
+        reallocate=reallocate,
+        vol_target=vol_target,
+        vol_lookback_days=vol_lookback,
+        max_leverage=max_leverage,
     )
     print(f"period: {default.start} .. {default.end}  ({default.trading_days} trading days)")
     print(f"cost model: {cost_bps:.1f} bps per side\n")
 
     cap_label = f"{sector_cap:.0%} sector cap" if sector_cap is not None else "no sector cap"
     realloc_label = "reallocated" if reallocate and sector_cap is not None else "not reallocated"
-    print(f"-- default: equal-weight, {cap_label}, {realloc_label} --")
+    vol_label = f", {vol_target:.0%} vol target" if vol_target is not None else ""
+    print(f"-- default: equal-weight, {cap_label}, {realloc_label}{vol_label} --")
     _print_one_portfolio(default)
 
-    if sector_cap is not None:
+    if sector_cap is not None or vol_target is not None:
         uncapped = portfolio_summary(cost_bps_per_side=cost_bps, max_sector_weight=None)
-        print("\n-- for reference: equal-weight, no sector cap --")
+        print("\n-- for reference: equal-weight, no sector cap, no vol target --")
         _print_one_portfolio(uncapped)
 
 
@@ -221,6 +239,28 @@ if __name__ == "__main__":
         "of reallocating it to under-cap sectors (default: reallocate)",
     )
     parser.add_argument(
+        "--vol-target",
+        type=float,
+        default=None,
+        metavar="FRACTION",
+        help="with --portfolio, scale the whole book to this annualized vol (e.g. 0.10); "
+        "off by default",
+    )
+    parser.add_argument(
+        "--vol-lookback",
+        type=int,
+        default=DEFAULT_VOL_LOOKBACK_DAYS,
+        help=f"with --vol-target, trailing days used for realized vol (default: "
+        f"{DEFAULT_VOL_LOOKBACK_DAYS})",
+    )
+    parser.add_argument(
+        "--max-leverage",
+        type=float,
+        default=DEFAULT_MAX_LEVERAGE,
+        help=f"with --vol-target, cap on the leverage multiplier (default: "
+        f"{DEFAULT_MAX_LEVERAGE:.1f})",
+    )
+    parser.add_argument(
         "--cost-bps",
         type=float,
         default=10.0,
@@ -241,6 +281,9 @@ if __name__ == "__main__":
             cost_bps=args.cost_bps,
             sector_cap=None if args.no_cap else args.sector_cap,
             reallocate=not args.no_reallocate,
+            vol_target=args.vol_target,
+            vol_lookback=args.vol_lookback,
+            max_leverage=args.max_leverage,
         )
     elif args.persist:
         n = persist_latest_signals()

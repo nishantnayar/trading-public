@@ -1,5 +1,6 @@
 "use client";
 
+import { NavChart } from "@/components/NavChart";
 import { Note, Panel, PanelHeader } from "@/components/ui";
 import type { BrokerState } from "@/lib/api";
 import { useApi } from "@/lib/useApi";
@@ -45,6 +46,12 @@ export default function BrokerPage() {
           stale mark.
         </div>
       )}
+
+      <Panel>
+        <PanelHeader label="NAV" />
+        <NavChart history={b?.equity_history ?? []} />
+        <Note>One point per historical rebalance — not a daily series, since rebalances only run when the schedule fires</Note>
+      </Panel>
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.6fr) minmax(280px,1fr)", gap: 14, alignItems: "start" }}>
         <Panel>

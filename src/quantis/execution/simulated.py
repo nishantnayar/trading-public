@@ -18,7 +18,13 @@ from dataclasses import dataclass
 from sqlalchemy import func, select
 
 from quantis.db.engine import session_scope
-from quantis.db.models import BrokerAccount, BrokerFill, BrokerPosition, DailyBar
+from quantis.db.models import (
+    BrokerAccount,
+    BrokerEquitySnapshot,
+    BrokerFill,
+    BrokerPosition,
+    DailyBar,
+)
 from quantis.signals.portfolio import target_weights
 
 DEFAULT_BROKER = "simulated"
@@ -193,6 +199,15 @@ def rebalance(
 
         account.cash = plan.cash
 
+        session.add(
+            BrokerEquitySnapshot(
+                broker=broker,
+                equity=plan.equity,
+                cash=plan.cash,
+                n_positions=len(plan.positions),
+            )
+        )
+
     return RebalanceResult(
         broker=broker,
         equity=plan.equity,
@@ -201,6 +216,28 @@ def rebalance(
         n_positions=len(plan.positions),
         unpriced_symbols=plan.unpriced_symbols,
     )
+
+
+def equity_history(broker: str = DEFAULT_BROKER, limit: int = 500) -> list[dict]:
+    """The last `limit` equity snapshots for `broker`, oldest first - one row
+    per historical `rebalance()` call, for charting NAV over time.
+    """
+    with session_scope() as session:
+        rows = list(
+            session.query(BrokerEquitySnapshot)
+            .filter(BrokerEquitySnapshot.broker == broker)
+            .order_by(BrokerEquitySnapshot.recorded_at.desc())
+            .limit(limit)
+        )
+    return [
+        {
+            "equity": float(r.equity),
+            "cash": float(r.cash),
+            "n_positions": r.n_positions,
+            "recorded_at": r.recorded_at.isoformat() if r.recorded_at else None,
+        }
+        for r in reversed(rows)
+    ]
 
 
 def account_state(broker: str = DEFAULT_BROKER) -> dict | None:
@@ -237,6 +274,7 @@ def account_state(broker: str = DEFAULT_BROKER) -> dict | None:
             "equity": equity,
             "updated_at": account.updated_at.isoformat() if account.updated_at else None,
             "unpriced_symbols": unpriced_symbols,
+            "equity_history": equity_history(broker),
             "positions": [
                 {
                     "symbol": p.symbol,

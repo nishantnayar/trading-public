@@ -88,6 +88,13 @@ export type BrokerFill = {
 };
 
 /** Current state of the simulated paper broker (quantis.execution.simulated). */
+export type BrokerEquitySnapshot = {
+  equity: number;
+  cash: number;
+  n_positions: number;
+  recorded_at: string | null;
+};
+
 export type BrokerState = {
   broker: string;
   cash: number;
@@ -97,6 +104,8 @@ export type BrokerState = {
   unpriced_symbols: string[];
   positions: BrokerPosition[];
   recent_fills: BrokerFill[];
+  /** One row per historical rebalance, oldest first — for charting NAV over time. */
+  equity_history: BrokerEquitySnapshot[];
 };
 
 /** IEX free-tier fact, surfaced in the UI (not returned by /coverage). */

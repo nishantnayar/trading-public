@@ -84,8 +84,9 @@ an in-database paper ledger toward it daily, filled at each symbol's latest clos
 `uv run python -c "from quantis.execution.simulated import rebalance; rebalance()"`
 or `GET /broker` / the Broker screen to see it. A held symbol with no valid price
 is excluded from equity and left untouched rather than silently valued at $0 or
-force-sold — flagged via `unpriced_symbols` end to end (result, API, UI). No live
-or real-money path exists anywhere in this repo.
+force-sold — flagged via `unpriced_symbols` end to end (result, API, UI). Every
+rebalance appends an equity snapshot, charted as a NAV history on the Broker
+screen. No live or real-money path exists anywhere in this repo.
 
 ---
 

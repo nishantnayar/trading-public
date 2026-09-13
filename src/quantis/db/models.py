@@ -245,6 +245,23 @@ class BrokerFill(Base):
     )
 
 
+class BrokerEquitySnapshot(Base):
+    """One row per `rebalance()` call - append-only NAV history for a
+    simulated broker, distinct from `BrokerAccount` (current cash only).
+    """
+
+    __tablename__ = "broker_equity_snapshots"
+
+    id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
+    broker: Mapped[str] = mapped_column(String(32), index=True)
+    equity: Mapped[float] = mapped_column(Numeric(18, 4))
+    cash: Mapped[float] = mapped_column(Numeric(18, 4))
+    n_positions: Mapped[int] = mapped_column(BigInteger)
+    recorded_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
+
+
 class Signal(Base):
     """Latest trend-rule signal for one watchlist symbol (quantis.signals).
 

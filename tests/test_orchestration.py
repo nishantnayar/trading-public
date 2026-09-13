@@ -166,3 +166,43 @@ def test_ensure_work_pool_swallows_already_exists(monkeypatch: pytest.MonkeyPatc
 
     monkeypatch.setattr("prefect.client.orchestration.get_client", lambda: _Client())
     assert ensure_work_pool("quantis-ingestion") == "quantis-ingestion"
+
+
+def test_prune_stale_deployments_deletes_only_unnamed_ones(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A deployment left behind by a deleted/renamed flow (as happened with the
+    old ML pipeline's weekly-research/weekly-rebalance) must be deleted; one
+    still in `keep_names` must not be touched.
+    """
+    from dataclasses import dataclass
+
+    from quantis.orchestration.serve import _prune_stale_deployments
+
+    @dataclass
+    class _Deployment:
+        id: str
+        name: str
+
+    existing = [
+        _Deployment(id="1", name="daily-ingest"),
+        _Deployment(id="2", name="weekly-research"),
+    ]
+    deleted_ids: list[str] = []
+
+    class _Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            return None
+
+        async def read_deployments(self, **kwargs: object) -> list[_Deployment]:
+            return existing
+
+        async def delete_deployment(self, deployment_id: str) -> None:
+            deleted_ids.append(deployment_id)
+
+    monkeypatch.setattr("prefect.client.orchestration.get_client", lambda: _Client())
+    _prune_stale_deployments("quantis-ingestion", {"daily-ingest"})
+    assert deleted_ids == ["2"]

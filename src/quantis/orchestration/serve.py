@@ -95,6 +95,32 @@ def _prefect_cli() -> str:
     return str(Path(sys.executable).with_name(name))
 
 
+@sync_compatible
+async def _prune_stale_deployments(pool: str, keep_names: set[str]) -> None:
+    """Delete any deployment on `pool` whose name isn't in `keep_names`.
+
+    apply_deployments() only ever creates/updates its own four - a flow
+    renamed or removed from the codebase (as happened when the old ML
+    pipeline's weekly-research/weekly-rebalance deployments were deleted)
+    otherwise lingers forever, still cron-firing into a MissingFlowError
+    since the flow function it points at no longer exists.
+    """
+    from prefect.client.orchestration import get_client
+    from prefect.client.schemas.filters import WorkPoolFilter, WorkPoolFilterName
+
+    async with get_client() as client:
+        deployments = await client.read_deployments(
+            work_pool_filter=WorkPoolFilter(name=WorkPoolFilterName(any_=[pool]))
+        )
+        for deployment in deployments:
+            if deployment.name not in keep_names:
+                await client.delete_deployment(deployment.id)
+                logger.warning(
+                    "deleted stale deployment {} (flow no longer defines it)",
+                    deployment.name,
+                )
+
+
 def apply_deployments(pool: str) -> None:
     """Point the ingest and signals cron jobs at `pool` so a worker can pick them up.
 
@@ -148,6 +174,10 @@ def apply_deployments(pool: str) -> None:
             deployment.name,  # type: ignore[attr-defined]
             pool,
         )
+
+    _prune_stale_deployments(  # type: ignore[unused-coroutine]  # @sync_compatible runs sync here
+        pool, {d.name for d in (ingest, signals, portfolio, paper)}  # type: ignore[attr-defined]
+    )
 
 
 def start_worker(pool: str) -> int:

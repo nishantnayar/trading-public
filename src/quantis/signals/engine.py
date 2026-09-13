@@ -6,9 +6,10 @@ import datetime as dt
 
 import pandas as pd
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert
 
 from quantis.db.engine import session_scope
-from quantis.db.models import DailyBar
+from quantis.db.models import DailyBar, Signal
 from quantis.signals.rules import TrendParams, compute_signal
 from quantis.signals.universe import WATCHLIST
 
@@ -53,3 +54,35 @@ def latest_signals(
 
 def _clean(value: float) -> float | None:
     return None if pd.isna(value) else float(value)
+
+
+def persist_latest_signals(rows: list[dict] | None = None) -> int:
+    """Upsert `latest_signals()` (or a caller-supplied equivalent) into `signals`.
+
+    One row per symbol - each call replaces that symbol's row entirely, since
+    `signals` holds the current snapshot, not history. Rows with no data
+    (`signal == "no_data"`) are skipped rather than written.
+    """
+    rows = rows if rows is not None else latest_signals()
+    records = [
+        {**row, "date": dt.date.fromisoformat(row["date"])}
+        for row in rows
+        if row.get("signal") != "no_data"
+    ]
+    if not records:
+        return 0
+    with session_scope() as session:
+        stmt = insert(Signal).values(records)
+        stmt = stmt.on_conflict_do_update(
+            index_elements=[Signal.symbol],
+            set_={
+                "date": stmt.excluded.date,
+                "signal": stmt.excluded.signal,
+                "close": stmt.excluded.close,
+                "sma_fast": stmt.excluded.sma_fast,
+                "sma_slow": stmt.excluded.sma_slow,
+                "mom_12_1": stmt.excluded.mom_12_1,
+            },
+        )
+        session.execute(stmt)
+    return len(records)

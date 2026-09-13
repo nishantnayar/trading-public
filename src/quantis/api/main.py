@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from quantis.api.routes.market import router as market_router
+from quantis.api.routes.signals import router as signals_router
 from quantis.config import get_settings
 
 
@@ -21,6 +22,7 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
     app.include_router(market_router)
+    app.include_router(signals_router)
     return app
 
 

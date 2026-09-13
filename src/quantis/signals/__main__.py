@@ -4,6 +4,7 @@ uv run python -m quantis.signals
 uv run python -m quantis.signals --backtest
 uv run python -m quantis.signals --compare
 uv run python -m quantis.signals --compare --detail
+uv run python -m quantis.signals --persist
 """
 
 from __future__ import annotations
@@ -11,7 +12,7 @@ from __future__ import annotations
 import argparse
 
 from quantis.signals.backtest import BacktestResult, compare_variants, run_watchlist
-from quantis.signals.engine import latest_signals
+from quantis.signals.engine import latest_signals, persist_latest_signals
 
 _ROW = "{symbol:<8}{strategy:>11.1%} {buy_hold:>11.1%} {sharpe:>8.2f} {trades:>7} {in_mkt:>7.0%}"
 _HEADER = f"{'symbol':<8}{'strategy':>12}{'buy_hold':>12}{'sharpe':>9}{'trades':>8}{'in_mkt':>8}"
@@ -103,11 +104,17 @@ if __name__ == "__main__":
     parser.add_argument(
         "--detail", action="store_true", help="with --compare, also print per-symbol rows"
     )
+    parser.add_argument(
+        "--persist", action="store_true", help="write latest signals to the signals table"
+    )
     args = parser.parse_args()
 
     if args.compare:
         _print_compare(detail=args.detail)
     elif args.backtest:
         _print_backtest()
+    elif args.persist:
+        n = persist_latest_signals()
+        print(f"wrote {n} signal rows")
     else:
         _print_signals()

@@ -11,3 +11,7 @@ def test_health() -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+
+
+def test_signals_route_is_mounted() -> None:
+    assert "/signals" in app.openapi()["paths"]

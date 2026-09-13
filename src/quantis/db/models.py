@@ -168,3 +168,27 @@ class IngestRun(Base):
     rows_written: Mapped[int | None] = mapped_column(BigInteger)
     status: Mapped[str] = mapped_column(String(16), default="running")
     detail: Mapped[str | None] = mapped_column(String(512))
+
+
+class Signal(Base):
+    """Latest trend-rule signal for one watchlist symbol (quantis.signals).
+
+    One row per symbol - each run replaces that symbol's row, so this is
+    always "the current signal", not a history. `date` is the bar the signal
+    was computed on, not when the row was written.
+    """
+
+    __tablename__ = "signals"
+
+    symbol: Mapped[str] = mapped_column(
+        String(16), ForeignKey("symbols.symbol", ondelete="CASCADE"), primary_key=True
+    )
+    date: Mapped[dt.date] = mapped_column(Date)
+    signal: Mapped[str] = mapped_column(String(8))
+    close: Mapped[float] = mapped_column(Numeric(18, 6))
+    sma_fast: Mapped[float | None] = mapped_column(Numeric(18, 6))
+    sma_slow: Mapped[float | None] = mapped_column(Numeric(18, 6))
+    mom_12_1: Mapped[float | None] = mapped_column(Numeric(18, 8))
+    computed_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )

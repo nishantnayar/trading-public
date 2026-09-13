@@ -37,31 +37,17 @@ export type IngestRun = {
   detail: string | null;
 };
 
+/** One watchlist symbol's current trend-rule signal (quantis.signals). */
 export type SignalRow = {
-  rank?: number;
-  symbol?: string;
-  sector?: string;
-  score?: number;
-  pctl?: number;
-  weight?: number;
-  side?: string;
-  gap?: boolean;
-  label?: string;
+  symbol: string;
+  date: string;
+  signal: "long" | "flat";
+  close: number;
+  sma_fast: number | null;
+  sma_slow: number | null;
+  mom_12_1: number | null;
+  computed_at: string | null;
 };
-
-export type SignalsSnapshot = {
-  as_of: string | null;
-  rows: SignalRow[];
-  meta: {
-    horizon?: string;
-    scored?: number;
-    longs?: number;
-    shorts?: number;
-    construction?: string;
-  };
-};
-
-export type Quintile = { label: string; v: number };
 
 export type PositionHolding = {
   symbol: string;

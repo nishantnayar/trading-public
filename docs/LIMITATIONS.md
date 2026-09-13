@@ -3,6 +3,15 @@
 Honest accounting of where the data and modelling assumptions fall short, and what it
 would take to fix each one. Kept current as phases land.
 
+> **2026-09 rebuild.** The LightGBM cross-sectional ranking pipeline (feature store →
+> model → backtest → paper execution, described in the "Feature store", "Model",
+> "Backtest", and "Paper execution" sections below) was deleted to rebuild the signal
+> side from a simpler, fully rule-based baseline (`quantis.signals`) first. Those
+> sections are kept **as a historical record** of what was built and learned — none of
+> that code exists in this repo anymore. The **Fundamentals coverage** and **Price
+> data** sections below are still current: the ingestion layer they describe was kept.
+> See the new **Signal (v1)** section for the current system's limitations.
+
 ---
 
 ## Fundamentals coverage — **RESOLVED via SEC EDGAR**
@@ -26,9 +35,12 @@ genuine point-in-time anchor rather than `period_end + an assumed lag`. See
 ```bash
 uv run python scripts/ingest_fundamentals_edgar.py            # full active universe, ~5 min
 uv run python scripts/ingest_fundamentals_edgar.py AAPL MSFT  # subset
-uv run python scripts/migrate_add_fundamental_features.py     # one-time: adds the 4 columns to `features`
-uv run python -m quantis.features.fundamental_build            # builds the daily point-in-time features
 ```
+
+`scripts/migrate_add_fundamental_features.py` and `quantis.features.fundamental_build`
+(which turned these rows into the 4 value/quality model features below) were deleted
+with the ML pipeline. `fundamentals` is still ingested and stored point-in-time; nothing
+currently reads it into a feature or a signal.
 
 ### Known EDGAR data quirks, and how they're handled
 
@@ -135,6 +147,76 @@ figure.
   dollar-volume filters must not use real-world thresholds.
 - **No pre-2020 regimes** — no 2008-09 crisis and no 2015-16 drawdown, so the model has
   never seen a severe multi-quarter deleveraging.
+
+---
+
+## Signal (v1) — `quantis.signals`
+
+The current signal: SMA(50/200) crossover, confirmed by 12-1 momentum, single-bar
+entry, 3-day debounced exit. See
+[`src/quantis/signals/rules.py`](../src/quantis/signals/rules.py) for the full
+rationale and the parameter comparison that picked these defaults.
+
+- **No transaction costs modeled.** `quantis.signals.backtest` is a sanity check on the
+  rule's shape (does it capture trends, how much does it whipsaw), not a P&L estimate.
+  At 89-169 round trips per name over ~6 years, realistic costs would matter.
+- **Tuned on 22 names.** The entry/exit debounce parameters were chosen by comparing
+  variants across the watchlist — a real improvement in aggregate, but with only 22
+  names there's a real risk some of that is curve-fit to this specific set rather than
+  a property of the rule that generalizes. Widening the watchlist further, or testing
+  on out-of-sample names, would help distinguish the two.
+- **No edge on genuine multi-year decliners.** Names like CMCSA, ALGN, TROW, MDLZ lose
+  money under every variant tested, including versus their own (weak/negative)
+  buy-and-hold. Expected for a trend-follower — it has nothing to say about a name with
+  no trend to follow — but worth stating plainly rather than only reporting the median.
+- **Long/flat only, no shorting, no position sizing beyond equal-weight.** The
+  Positions screen's "book" is illustrative (every currently-long name at 1/N), not a
+  constructed portfolio.
+- **No live or paper execution.** Nothing in this repo submits an order against this
+  signal. `signals` just records the current long/flat call per symbol.
+- **Watchlist is hand-picked, not the full 500+ universe.** `quantis.signals.universe`
+  is a deliberate 22-name subset chosen to span sectors, not `data.universe`'s full
+  investable universe.
+
+## Universe
+
+- **Survivorship bias** — `data/universe/sp500.csv` is the *current* S&P 500. Names that
+  were dropped (delisted, acquired, fell out) are absent, so anything backtested inherits
+  an upward bias. The `symbols` table carries `active` and `added_at`, and the
+  `Fundamental` model is already point-in-time shaped, so the fix is a historical
+  membership CSV with `valid_from` / `valid_to` — not a schema change.
+
+## Infrastructure
+
+- **No Alembic migrations** — schema is created with `Base.metadata.create_all()` via
+  `scripts/init_db.py`. Alembic is a declared dependency but unconfigured; fine while
+  tables are additive, needs doing before any destructive column change.
+- **`ingest_runs` is written** by `ingest-daily-bars` and `recompute-signals`.
+  `scripts/start.py` starts the Prefect server and the cron runner together.
+  `--skip schedules` disables cron.
+- **Prefect 2.20 cannot run on AnyIO 4.14+.** `GatherTaskGroup` is missing `create_task`,
+  so a finished ingest was marked Crashed. The env is pinned to `anyio>=4.4,<4.14`.
+- **No `YFinancePrices` fallback** — `PriceSource` is a protocol with only
+  `AlpacaDailyBars` implementing it, despite the plan naming a fallback.
+
+## Dashboard
+
+- **The dev stack is loopback-only and not deployable as-is.** All three services bind
+  `127.0.0.1`, and the frontend reads `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`.
+  Deploying the Next app to Vercel would therefore render the shell with **no data**: the
+  visitor's browser would call *their own* localhost. A hosted dashboard needs three
+  things first — the FastAPI service publicly reachable, **Postgres hosted** (it is
+  currently a local install with no managed instance), and the deployed origin added to
+  `api_cors_origins`. Vercel can host the frontend, but not the data layer behind it.
+- **Positions is an illustrative equal-weighted book**, not a constructed portfolio —
+  see Signal (v1) above. There is no rebalance history or broker fill data anywhere in
+  this repo.
+
+---
+
+> **Everything below this line documents the deleted ML/backtest/execution pipeline**
+> (feature store → LightGBM → backtest → paper broker). Kept as a record of what was
+> built and learned; none of it reflects code currently in this repo.
 
 ## Feature store (Phase 3)
 
@@ -281,28 +363,6 @@ a flat rate. It **excludes**:
 - **Fixed quintile count and schedule** were not tuned. Any sweep of them must be treated
   as parameter search on out-of-fold data, which is a second-order overfit.
 
-## Universe
-
-- **Survivorship bias** — `data/universe/sp500.csv` is the *current* S&P 500. Names that
-  were dropped (delisted, acquired, fell out) are absent, so backtests inherit an upward
-  bias. The `symbols` table carries `active` and `added_at`, and the `Fundamental` model
-  is already point-in-time shaped, so the fix is a historical membership CSV with
-  `valid_from` / `valid_to` — not a schema change.
-
-## Infrastructure
-
-- **No Alembic migrations** — schema is created with `Base.metadata.create_all()` via
-  `scripts/init_db.py`. Alembic is a declared dependency but unconfigured; fine while
-  tables are additive, needs doing before any destructive column change.
-- **`ingest_runs` is written** by `ingest-daily-bars`, `publish-scores`, and
-  `weekly-rebalance`. `scripts/start.py` starts the Prefect server and the cron runner
-  together. `--skip schedules` disables cron (weekday ingest, Saturday research, Monday
-  simulated rebalance). Rebalance still defaults to the in-process ledger.
-- **Prefect 2.20 cannot run on AnyIO 4.14+.** `GatherTaskGroup` is missing `create_task`,
-  so a finished ingest was marked Crashed. The env is pinned to `anyio>=4.4,<4.14`.
-- **No `YFinancePrices` fallback** — `PriceSource` is a protocol with only
-  `AlpacaDailyBars` implementing it, despite the plan naming a fallback.
-
 ## Feature store
 
 - **Price-only by design.** Eleven columns on `features`, all from daily bars. No
@@ -321,19 +381,3 @@ a flat rate. It **excludes**:
   latency, not a locate. Short qty is just negative inventory.
 - **Alpaca paper fills are not written** to `broker_fills`; only the simulated ledger
   persists. `GET /broker` reads that ledger.
-
-## Dashboard
-
-- **The dev stack is loopback-only and not deployable as-is.** All three services bind
-  `127.0.0.1`, and the frontend reads `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000`.
-  Deploying the Next app to Vercel would therefore render the shell with **no data**: the
-  visitor's browser would call *their own* localhost. A hosted dashboard needs three
-  things first — the FastAPI service publicly reachable, **Postgres hosted** (it is
-  currently a local install with no managed instance), and the deployed origin added to
-  `api_cors_origins`. Vercel can host the frontend, but not the data layer behind it.
-- **Positions are target weights, not fills.** The Positions screen shows the published
-  working book (`buffer=1`, 10-session hold). Paper quantities and cash live on
-  `GET /broker` after `python -m quantis.execution.broker` (simulated by default).
-  Simulated fills are at the supplied close, not an exchange match; Alpaca paper fills
-  are not persisted into `broker_fills`. Restart the UI after `publish` so Next picks up
-  API changes; uvicorn `--reload-dir src` covers the backend.

@@ -2,15 +2,14 @@
 
 # 📈 Quantis
 
-### Cross-Sectional Equity ML Trading System
+### US Equity Data Platform + Rule-Based Trend Signal
 
-*Daily S&P 500 ranking: Alpaca bars → point-in-time features → LightGBM → FastAPI / Next.js.*
+*Alpaca daily bars → PostgreSQL → SMA-crossover / momentum trend rule → FastAPI / Next.js.*
 
 [![CI](https://github.com/nishantnayar/trading-public/actions/workflows/ci.yml/badge.svg)](https://github.com/nishantnayar/trading-public/actions/workflows/ci.yml)
 [![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![uv](https://img.shields.io/badge/env-uv-DE5FE9)](https://github.com/astral-sh/uv)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white)](https://www.postgresql.org/)
-[![LightGBM](https://img.shields.io/badge/model-LightGBM-2E7D32)](https://lightgbm.readthedocs.io/)
 [![Prefect](https://img.shields.io/badge/orchestration-Prefect-070E10?logo=prefect&logoColor=white)](https://www.prefect.io/)
 [![FastAPI](https://img.shields.io/badge/API-FastAPI-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![Next.js](https://img.shields.io/badge/dashboard-Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
@@ -22,13 +21,19 @@
 
 ## Overview
 
-**Quantis** trains a LightGBM model to rank the S&P 500 on **forward cross-sectional
-excess return** (per-date z-scored 5-day returns). Data, features, and the model live in
-a local PostgreSQL database; a FastAPI backend and Next.js terminal surface coverage,
-prices, and pipeline status.
+**Quantis** ingests daily equity bars and quarterly fundamentals into a local PostgreSQL
+database, and evaluates a fully mechanical, backtestable trend-following rule (SMA
+crossover confirmed by 12-1 momentum, debounced exit) over a hand-picked watchlist. A
+FastAPI backend and Next.js terminal surface data coverage, the current signal per
+symbol, and pipeline status.
 
 > **Disclaimer** — Educational / portfolio project. **Paper trading only**, no real orders.
 > Nothing here is investment advice.
+
+This repo previously carried a full LightGBM cross-sectional ranking pipeline
+(features → model → backtest → paper execution). That layer was removed to rebuild the
+signal side from a simpler, fully-rule-based baseline first — see
+[`docs/PROGRESS.md`](docs/PROGRESS.md) for what that pipeline covered and why it was cut.
 
 ---
 
@@ -36,33 +41,24 @@ prices, and pipeline status.
 
 | Layer | What you can run today |
 |---|---|
-| **Prices** | ~757k Alpaca daily bars, 502 symbols, upserted into Postgres |
-| **Features** | 11 point-in-time price features (~755k rows, leakage-tested) + 4 optional value/quality features from EDGAR fundamentals |
-| **Model** | LightGBM + purged walk-forward CV, MLflow tracking, SHAP |
-| **Backtest** | Dollar-neutral quintile L/S, cost sweep, Phase 6 construction levers |
-| **Paper broker** | Simulated ledger (default) + Alpaca paper adapter; no live orders |
-| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday ingest, Sat research, Mon rebalance) |
-| **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Model, Monitoring |
+| **Prices** | ~758k Alpaca daily bars, 503 symbols, upserted into Postgres |
+| **Fundamentals** | Quarterly reports from SEC EDGAR, point-in-time `as_of` dates, 503 symbols back to 2006 |
+| **Signal** | Rule-based trend-follower (`quantis.signals`) over a 22-name, 9-sector watchlist — SMA(50/200) crossover, 12-1 momentum filter, 3-day debounced exit |
+| **Backtest** | Vectorized long/flat backtest + a 3-variant debounce comparison, no costs modeled |
+| **Ingest / schedules** | Prefect server + cron runner on `scripts/start.py` (weekday bar ingest, then signal recompute) |
+| **API / UI** | FastAPI `:8000` + Next.js `:3000` — Overview, Signals, Positions, Monitoring |
 
-**Result so far — a real signal that costs eat.** Out-of-fold rank IC **0.018**; the
-long/short book returns **5.3% CAGR at Sharpe 0.78 gross**, but **1.7% at Sharpe 0.28**
-once 10 bps per side is charged, and turns negative by 20 bps. Break-even is **15.7 bps
-per side**, and the constraint is **34x annualised turnover**, not the signal. A
-no-trade buffer plus a 10-session hold cuts that to **13.4x** and lifts break-even to
-**25.4 bps**; sector-neutralising the 5.3% IT tilt **destroys** the edge. Full
-accounting: [`docs/LIMITATIONS.md`](docs/LIMITATIONS.md#backtest-phase-5).
+The **Model** screen in the UI is a holdover from the deleted ML pipeline and is not
+currently wired to anything — it's next in line for either removal or a real
+replacement once there's a model to show.
 
-Fundamentals now come from **SEC EDGAR** (free, no API key): 503 symbols, 2006→2026,
-real filing dates as the point-in-time anchor. Value/quality features are optional —
-LightGBM handles the sparser coverage (78% of panel rows) natively rather than
-requiring them complete like the price features. Whether they improve the model is
-still an open question (one run isn't enough to tell) — see
-[`docs/LIMITATIONS.md`](docs/LIMITATIONS.md#fundamentals-coverage--resolved-via-sec-edgar).
-Positions in the UI are **target weights**; paper qty/cash is `GET /broker` after a
-simulated rebalance.
-
-Verified counts, tests, and design intent: [`docs/PROGRESS.md`](docs/PROGRESS.md),
-[`docs/PLAN.md`](docs/PLAN.md).
+Backtested over its full history (2020-07-27 → today) across the watchlist, the current
+default rule (single-bar entry, 3-day debounced exit) beats both a fully single-bar
+version and a symmetric debounced-entry-and-exit version on median return, at the same
+median Sharpe. It still trails buy-and-hold on most names (expected — it's a long/flat
+rule that sits out drawdowns, not a leveraged momentum bet) and has no edge on names in
+a genuine multi-year decline. See `uv run python -m quantis.signals --compare` and
+[`src/quantis/signals/rules.py`](src/quantis/signals/rules.py) for the full rationale.
 
 ---
 
@@ -72,16 +68,13 @@ Verified counts, tests, and design intent: [`docs/PROGRESS.md`](docs/PROGRESS.md
 flowchart LR
     A[Alpaca<br/>daily bars] --> B[(PostgreSQL<br/>quantis)]
     F[SEC EDGAR<br/>fundamentals] --> B
-    B --> C[Feature store<br/>11 price + 4 value/quality]
-    C --> D[LightGBM<br/>purged walk-forward]
-    D --> BT[Backtest<br/>quintile L/S · cost sweep]
-    D -.-> M[MLflow]
-    BT --> PB[Paper broker<br/>simulated / Alpaca paper]
+    B --> SIG[Trend rule<br/>SMA crossover + 12-1 momentum]
+    SIG --> B
     P[Prefect ingest] -.-> A
-    Svc[Prefect schedules] -.-> P
+    Sc[Prefect schedules] -.-> P
+    Sc -.-> SIG
     B --> API[FastAPI]
-    API --> S[Next.js<br/>5 screens]
-    PB -.-> API
+    API --> S[Next.js<br/>terminal]
 ```
 
 ---
@@ -92,7 +85,7 @@ flowchart LR
 |---|---|
 | **Language / env** | Python 3.11, [uv](https://github.com/astral-sh/uv) (no Docker) |
 | **Data & storage** | Alpaca Market Data, SEC EDGAR (fundamentals), PostgreSQL, SQLAlchemy 2.0 |
-| **Modeling** | scikit-learn, LightGBM, SHAP, MLflow |
+| **Signal** | Pure pandas (`quantis.signals`) — no ML dependency today |
 | **Orchestration** | Prefect (isolated local profile) |
 | **Backend / UI** | FastAPI + Uvicorn, Next.js (React + TypeScript) + Tailwind |
 | **Quality** | pytest, black, flake8, ruff, mypy, pre-commit, GitHub Actions |
@@ -104,7 +97,7 @@ flowchart LR
 ```bash
 # 1. Environment (uv fetches Python 3.11 automatically)
 uv python install 3.11
-uv sync --group data --group ml --group backtest --group orchestration --group api --group app --group dev
+uv sync --group data --group orchestration --group api --group app --group dev
 
 # 2. Configure
 cp .env.example .env          # fill PGPASSWORD and Alpaca paper keys
@@ -118,22 +111,13 @@ uv run python -m quantis.orchestration.flows
 
 # 4b. Fundamentals from SEC EDGAR (full universe by default, ~5 min; one-time)
 uv run python scripts/ingest_fundamentals_edgar.py
-uv run python scripts/migrate_add_fundamental_features.py   # one-time: adds 4 columns to `features`
 
-# 4c. Point-in-time features: 11 price (writes `features`) + 4 value/quality from fundamentals
-uv run python -m quantis.features.build
-uv run python -m quantis.features.fundamental_build
+# 4c. Compute and persist the trend signal over the watchlist
+uv run python -m quantis.signals --persist
 
-# 4d. Train LightGBM (purged walk-forward; writes models/artifacts/)
-uv run python -m quantis.models.train
-
-# 4e. Backtest the out-of-fold predictions, net of costs
-uv run python -m quantis.backtest.run
-uv run python -m quantis.backtest.compare   # Phase 6 levers at 10 bps
-uv run python -m quantis.backtest.publish   # scores + weights into Postgres for the UI
-
-# 4f. Paper rebalance (simulated ledger; never live)
-uv run python -m quantis.execution.broker
+# Optional: backtest the rule, or compare debounce variants
+uv run python -m quantis.signals --backtest
+uv run python -m quantis.signals --compare
 
 # 5. Local stack: FastAPI :8000, Next.js :3000, Prefect :4201 + cron deployments
 uv run python scripts/start.py
@@ -144,7 +128,6 @@ stops everything. Use `--only api ui` or `--skip prefect` for a subset. `--skip 
 keeps the Prefect UI without registering cron. Postgres should already be running as a
 system service.
 
-Optional RL extra (not used by the current pipeline): `uv sync --group rl`.
 Frontend deps: `cd frontend && npm install` (first time only; the launcher warns if
 `node_modules` is missing).
 
@@ -170,7 +153,7 @@ uv run pre-commit run --all-files   # same suite locally
 | **ESLint** | Next.js / TypeScript in `frontend/` |
 | **pytest** | unit suite (CI; DB ping skips without `PGPASSWORD`) |
 
-CI also runs `npm run lint` in `frontend/`. The RL extra (`torch`) is not installed in CI.
+CI also runs `npm run lint` in `frontend/`.
 
 ---
 
@@ -187,11 +170,11 @@ uv run python scripts/start.py
 |---|---|
 | Overview `/` | Live — coverage, universe, sector mix, price chart |
 | Monitoring `/monitoring` | Live — bar coverage, ingest-run audit |
-| Signals `/signals` | Live — published OOF scores |
-| Positions `/positions` | Live — target weights (`buffer=1`, 10-session hold) |
-| Model `/model` | Live — IC, SHAP, cost-aware book metrics |
+| Signals `/signals` | Live — current trend rule signal per watchlist symbol |
+| Positions `/positions` | Live — equal-weighted illustrative book of currently-long names |
+| Model `/model` | **Not wired up** — holdover from the deleted ML pipeline |
 
-Paper fills: `GET /broker` (simulated ledger). See [`frontend/README.md`](frontend/README.md).
+See [`frontend/README.md`](frontend/README.md).
 
 ---
 
@@ -201,16 +184,13 @@ Paper fills: `GET /broker` (simulated ledger). See [`frontend/README.md`](fronte
 src/quantis/
 ├── config.py          # pydantic settings from .env
 ├── db/                # SQLAlchemy models + engine/session
-├── data/              # universe, Alpaca/yfinance sources, upsert store
-├── features/          # point-in-time feature store
-├── models/            # labels, purged CV, LightGBM training, registry
-├── backtest/          # weight construction, cost-aware P&L engine
-├── execution/         # simulated ledger + Alpaca paper (no live path)
-├── orchestration/     # Prefect ingest + cron runner (with start.py)
+├── data/              # universe, Alpaca/EDGAR sources, upsert store
+├── signals/           # rule-based trend signal: indicators, rules, engine, backtest
+├── orchestration/      # Prefect ingest + signal-recompute flows (with start.py)
 └── api/               # FastAPI backend
 frontend/              # Next.js dashboard
 scripts/               # start.py, env_check, init_db, ingest_fundamentals_edgar
-tests/                 # env, features, leakage, labels, CV, backtest, API
+tests/                 # env, signals, orchestration, API
 docs/                  # PLAN · PROGRESS · LIMITATIONS
 ```
 

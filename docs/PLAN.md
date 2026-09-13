@@ -1,5 +1,16 @@
 # Cross-Sectional Equity ML Trading System — Design Plan
 
+> **2026-09-12 pivot.** The plan below is the *original* design intent and is kept as a
+> record of it — the reasoning behind point-in-time correctness, purged CV, cost-aware
+> backtesting, etc. is still good practice. But the ML/backtest/execution/RL pipeline it
+> describes (Phases 3-10) was **deleted from the repo** on 2026-09-12 to rebuild the
+> signal side from a simpler, fully rule-based baseline first
+> (`quantis.signals` — SMA crossover + 12-1 momentum). See
+> [`docs/PROGRESS.md`](PROGRESS.md) (see "Phase 12") for what actually exists today,
+> and [`docs/LIMITATIONS.md`](LIMITATIONS.md) (see "Signal (v1)") for its current
+> limitations. Phase status notes below are left as originally written
+> (a historical record), with a removal tag added where the code no longer exists.
+
 ## Context
 
 Nishant wants a **full end-to-end, AI/ML-driven trading system** to showcase quant + ML
@@ -214,7 +225,9 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    therefore builds **price-only** features. See `docs/LIMITATIONS.md`.
 3. **Feature store** — momentum/value/quality/vol/technical features, all point-in-time;
    `features` table; leakage unit tests.
-   **Status:** DONE, price-only. 11 features (momentum 1m/3m/6m/12-1, `ret_5d`, vol
+   **Status (2026-09-12): removed** along with the rest of the ML pipeline — see the
+   note at the top of this file. Original write-up kept below.
+   **Status (as originally written):** DONE, price-only. 11 features (momentum 1m/3m/6m/12-1, `ret_5d`, vol
    20d/60d, RSI-14, distance from 52w high, 50/200 MA ratio, log dollar volume) built
    for 502 symbols / 754,809 rows. 18 tests cover hand-computed values plus four leakage
    guards (future-truncation invariance, last-bar shock isolation, cross-symbol
@@ -224,7 +237,7 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    `tests/test_features.py`, `tests/test_leakage.py`). Value/quality is deferred until
    fundamentals have real history — see `docs/LIMITATIONS.md`. Run with
    `uv run python -m quantis.features.build`.
-4. **Labels + model** — ✅ **done.** Per-date z-scored 5-day forward-return labels
+4. **Labels + model** — **removed 2026-09-12** (see top-of-file note). Originally: ✅ **done.** Per-date z-scored 5-day forward-return labels
    (`models/labels.py`), purged walk-forward CV with embargo (`models/cv.py`), rank-IC
    metrics (`models/metrics.py`), LightGBM L2 regression + SHAP + MLflow
    (`models/train.py`). Objective is regression on the z-score rather than `lambdarank`:
@@ -232,7 +245,8 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    feature vectors are **required, not imputed**. Result: rank IC 0.0178 gross over 5
    folds — see `docs/PROGRESS.md` and `docs/LIMITATIONS.md`. Run with
    `uv run python -m quantis.models.train`.
-5. **Backtester** — ✅ **done.** Weight-matrix backtest with turnover costs
+5. **Backtester** — **removed 2026-09-12** (see top-of-file note; a new, simpler
+   long/flat backtest exists for the Phase 12 signal instead). Originally: ✅ **done.** Weight-matrix backtest with turnover costs
    (`backtest/portfolio.py`, `backtest/engine.py`, `backtest/run.py`): dollar-neutral
    quintile long/short, weekly rebalance, lagged trade timing, and a cost sweep reporting
    break-even bps. Implemented in pandas rather than vectorbt — the P&L is a two-line
@@ -240,33 +254,39 @@ backtest layer can drop to a pandas/numpy vectorized loop with quantstats for th
    dependency; vectorbt and quantstats remain installed if a tearsheet is wanted.
    Outcome: break-even 15.7 bps/side, so the signal is real but not investable at
    realistic cost. Run with `uv run python -m quantis.backtest.run`.
-6. **Portfolio & risk** — 🟡 **in progress.** No-trade buffer, longer hold, and
+6. **Portfolio & risk** — **removed 2026-09-12** (see top-of-file note). Originally:
+   🟡 **in progress.** No-trade buffer, longer hold, and
    sector-neutral construction are implemented and compared on the Phase 5 OOF file
    (`backtest/portfolio.py`, `backtest/compare.py`). Combined buffer + 10-session hold
    is the only variant that beats the Phase 5 book on cost capacity (BE 25.4 vs 15.7
    bps). Sector-neutralisation currently has **no edge**. Vol-targeting, name caps, and
    rank-weighting are still open. Run `uv run python -m quantis.backtest.compare`.
    behind a `portfolio.construct` interface (the seam the RL agent later plugs into).
-7. **Execution** — ✅ **done.** `SimulatedBroker` + `AlpacaPaperClient` behind
+7. **Execution** — **removed 2026-09-12** (see top-of-file note; no execution layer of
+   any kind exists currently). Originally: ✅ **done.** `SimulatedBroker` + `AlpacaPaperClient` behind
    `ExecutionClient`. Default is the in-process ledger (`QUANTIS_BROKER=simulated`).
    Alpaca construction raises `LiveTradingDisabled` unless `ALPACA_PAPER` is true, and
    the SDK client is always created with `paper=True`. Run
    `uv run python -m quantis.execution.broker`.
-8. **Orchestration** — ✅ **done.** Prefect deployments: weekday incremental ingest
-   17:15 local, Saturday research 08:00, Monday rebalance 09:40. `scripts/start.py`
-   starts the server, creates process pool `quantis-ingestion`, and starts a worker so
-   the Work Pools page is active. `--skip schedules` keeps the UI without a worker.
-   Rebalance defaults to simulated so cron cannot submit paper orders by accident.
+8. **Orchestration** — ✅ **done, updated 2026-09-12.** Prefect deployments now:
+   weekday incremental ingest 17:15 local, then `daily-signals` at 17:30 recomputing
+   the Phase 12 trend rule. The original Saturday-research and Monday-rebalance
+   deployments were removed with the ML/execution pipeline. `scripts/start.py` starts
+   the server, creates process pool `quantis-ingestion`, and starts a worker so the
+   Work Pools page is active. `--skip schedules` keeps the UI without a worker.
 9. **Dashboard** — (a) **FastAPI** backend (`src/quantis/api/`) exposing coverage,
-   universe, bars, signals, positions, model diagnostics as JSON; (b) **Next.js** frontend
-   (`frontend/`) with the 5 screens matching the mockups, consuming the API. Retire the
-   Streamlit smoke test once parity is reached.
-   **Status:** all 5 screens read Postgres. Signals / Positions / Model consume
-   published OOF scores and the working book (`buffer=1, every=10`). Positions are
-   target weights, not broker fills. Streamlit remains at `scripts/dashboard.ps1`.
+   universe, bars, and signals as JSON; (b) **Next.js** frontend (`frontend/`) consuming
+   the API. Retire the Streamlit smoke test once parity is reached.
+   **Status (2026-09-12):** Overview and Monitoring are unaffected. Signals and
+   Positions were rewired to the Phase 12 rule-based signal (equal-weighted
+   illustrative book for Positions, since there is no portfolio construction anymore).
+   Model screen is not currently wired to anything — a holdover from the deleted
+   pipeline. Streamlit remains at `scripts/dashboard.ps1`.
 10. **RL agent (advanced / stretch)** — Gymnasium env wrapping the backtest, PPO/SAC via
     Stable-Baselines3, plugged into `portfolio.construct`; benchmark vs the rule-based
-    baseline out-of-sample.
+    baseline out-of-sample. **Never started; the `rl` dependency group and `src/quantis/rl/`
+    were removed 2026-09-12** along with the rest of the ML pipeline they'd have plugged
+    into.
 11. **Polish** — CI, README with architecture diagram, results tearsheet,
     "known limitations & next steps" section.
     **Sphinx docs site (do last):** `docs/` today is working markdown. At the end,

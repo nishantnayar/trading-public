@@ -55,7 +55,16 @@ export default function BrokerPage() {
 
       <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2.6fr) minmax(280px,1fr)", gap: 14, alignItems: "start" }}>
         <Panel>
-          <PanelHeader label="SIMULATED POSITIONS" />
+          <PanelHeader
+            label="SIMULATED POSITIONS"
+            right={
+              positions.length > 0 ? (
+                <span style={{ marginLeft: "auto", fontFamily: MONO, fontSize: 10, color: C.t4 }}>
+                  {positions.length} names
+                </span>
+              ) : undefined
+            }
+          />
           {!b ? (
             <div style={{ padding: 24, fontFamily: MONO, fontSize: 12, color: C.t3 }}>
               Run: uv run python -c &quot;from quantis.execution.simulated import
@@ -66,33 +75,35 @@ export default function BrokerPage() {
               No open positions.
             </div>
           ) : (
-            <table style={{ fontFamily: MONO, fontSize: 12, width: "100%" }}>
-              <thead>
-                <tr style={{ fontSize: 10, letterSpacing: "0.1em", borderBottom: `1px solid ${C.border}` }}>
-                  <th style={{ ...TH, padding: "7px 10px 7px 14px", textAlign: "left" }}>TICKER</th>
-                  <th style={{ ...TH, textAlign: "right" }}>QTY</th>
-                  <th style={{ ...TH, textAlign: "right" }}>PRICE</th>
-                  <th style={{ ...TH, padding: "7px 14px 7px 10px", textAlign: "right" }}>MKT VALUE</th>
-                </tr>
-              </thead>
-              <tbody>
-                {positions.map((p) => (
-                  <tr key={p.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
-                    <td style={{ padding: "0 10px 0 14px", color: p.stale ? C.accent2 : C.text }}>
-                      {p.symbol}
-                      {p.stale && <span style={{ marginLeft: 6, fontSize: 9, color: C.accent2 }}>STALE</span>}
-                    </td>
-                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{p.qty.toFixed(3)}</td>
-                    <td style={{ padding: "0 10px", textAlign: "right", color: C.t3 }}>{p.price?.toFixed(2) ?? "—"}</td>
-                    <td style={{ padding: "0 14px 0 10px", textAlign: "right", color: C.text }}>
-                      {p.market_value != null
-                        ? `$${p.market_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                        : "—"}
-                    </td>
+            <div style={{ maxHeight: 420, overflowY: "auto" }}>
+              <table style={{ fontFamily: MONO, fontSize: 12, width: "100%", borderCollapse: "collapse" }}>
+                <thead>
+                  <tr style={{ fontSize: 10, letterSpacing: "0.1em" }}>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "7px 10px 7px 14px", textAlign: "left" }}>TICKER</th>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>QTY</th>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, textAlign: "right" }}>PRICE</th>
+                    <th style={{ ...TH, position: "sticky", top: 0, background: C.panel, borderBottom: `1px solid ${C.border}`, padding: "7px 14px 7px 10px", textAlign: "right" }}>MKT VALUE</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {positions.map((p) => (
+                    <tr key={p.symbol} style={{ borderTop: `1px solid ${C.border2}`, height: 30 }}>
+                      <td style={{ padding: "0 10px 0 14px", color: p.stale ? C.accent2 : C.text }}>
+                        {p.symbol}
+                        {p.stale && <span style={{ marginLeft: 6, fontSize: 9, color: C.accent2 }}>STALE</span>}
+                      </td>
+                      <td style={{ padding: "0 10px", textAlign: "right", color: C.t2 }}>{p.qty.toFixed(3)}</td>
+                      <td style={{ padding: "0 10px", textAlign: "right", color: C.t3 }}>{p.price?.toFixed(2) ?? "—"}</td>
+                      <td style={{ padding: "0 14px 0 10px", textAlign: "right", color: C.text }}>
+                        {p.market_value != null
+                          ? `$${p.market_value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                          : "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
           <Note>SIMULATED · fills at the latest close · fractional shares · no real order ever submitted · a stale (unpriced) position is excluded from equity and left untouched, never sold at a bad mark</Note>
         </Panel>

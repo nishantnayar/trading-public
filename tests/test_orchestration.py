@@ -204,5 +204,7 @@ def test_prune_stale_deployments_deletes_only_unnamed_ones(
             deleted_ids.append(deployment_id)
 
     monkeypatch.setattr("prefect.client.orchestration.get_client", lambda: _Client())
-    _prune_stale_deployments("quantis-ingestion", {"daily-ingest"})
+    _prune_stale_deployments(  # type: ignore[unused-coroutine]  # @sync_compatible runs sync here
+        "quantis-ingestion", {"daily-ingest"}
+    )
     assert deleted_ids == ["2"]

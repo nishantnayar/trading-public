@@ -33,6 +33,11 @@ data = [
 # Orchestration
 orchestration = [
     "prefect>=2.19,<3",
+    # Prefect's own orchestration DB (quantis_prefect, distinct from quantis
+    # itself) runs on Postgres, not the default SQLite file - SQLite's
+    # file-level locking meant the server and the worker's heartbeat writes
+    # regularly hit "database is locked" under real contention.
+    "asyncpg>=0.29",
 ]
 # FastAPI backend for the Next.js UI
 api = [

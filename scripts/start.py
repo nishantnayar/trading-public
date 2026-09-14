@@ -102,19 +102,28 @@ class Service:
 def prefect_env(prefect_home: Path) -> dict[str, str]:
     """Env for the Prefect server and the worker that talks to it.
 
-    Local Prefect uses SQLite. Concurrent writers (server background
-    loops + applying deployments) raise `database is locked`. We do not
-    use flow-run notification hooks, so that loop is off. Timeouts give
-    SQLite time to wait instead of failing the statement.
+    Prefect's own orchestration metadata (distinct from quantis' own
+    `quantis` database) lives in the `quantis_prefect` Postgres database on
+    the same local server, not the default SQLite file. SQLite's
+    file-level locking meant the server's background loops and the
+    worker's heartbeat writes raced for the same file and regularly hit
+    `database is locked` even with a generous busy-timeout (tried first;
+    still surfaced under real contention) - Postgres handles concurrent
+    writers properly, so this removes the problem instead of widening the
+    window for it.
     """
+    from quantis.config import get_settings
+
+    s = get_settings()
+    pw = f":{s.pgpassword}" if s.pgpassword else ""
+    prefect_db_url = f"postgresql+asyncpg://{s.pguser}{pw}@{s.pghost}:{s.pgport}/quantis_prefect"
     return {
         "PREFECT_HOME": str(prefect_home),
         "PREFECT_SERVER_API_HOST": "127.0.0.1",
         "PREFECT_SERVER_API_PORT": str(PREFECT_PORT),
         "PREFECT_API_URL": f"http://127.0.0.1:{PREFECT_PORT}/api",
         "PREFECT_API_SERVICES_FLOW_RUN_NOTIFICATIONS_ENABLED": "false",
-        "PREFECT_API_DATABASE_CONNECTION_TIMEOUT": "60",
-        "PREFECT_API_DATABASE_TIMEOUT": "60",
+        "PREFECT_API_DATABASE_CONNECTION_URL": prefect_db_url,
         # Process worker always starts via `python -m prefect.engine`, which
         # emits a runpy warning and a Prefect 2 deprecation on every flow run.
         "PYTHONWARNINGS": (

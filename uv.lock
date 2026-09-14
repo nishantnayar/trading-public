@@ -1942,6 +1942,7 @@ dev = [
     { name = "ruff" },
 ]
 orchestration = [
+    { name = "asyncpg" },
     { name = "prefect" },
 ]
 
@@ -1982,7 +1983,10 @@ dev = [
     { name = "pytest-cov", specifier = ">=5" },
     { name = "ruff", specifier = ">=0.5" },
 ]
-orchestration = [{ name = "prefect", specifier = ">=2.19,<3" }]
+orchestration = [
+    { name = "asyncpg", specifier = ">=0.29" },
+    { name = "prefect", specifier = ">=2.19,<3" },
+]
 
 [[package]]
 name = "readchar"
